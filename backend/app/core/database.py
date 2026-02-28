@@ -1,0 +1,17 @@
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+DATABASE_URL = "postgresql://postgres:password@localhost:5433/period_tracker"
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,   # เช็ค connection ก่อนใช้
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+)
+
+Base = declarative_base()

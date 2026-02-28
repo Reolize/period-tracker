@@ -1,0 +1,14 @@
+Backend --
+
+Run environment ที่ C:\Users\User\Desktop\period-tracker\backend
+
+venv\Scripts\activate
+
+Run server
+uvicorn app.main:app --reload
+
+***
+
+Frontend --
+
+npm run dev
