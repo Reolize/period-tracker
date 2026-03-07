@@ -1,41 +1,15 @@
 "use client"
 
 export default function Header() {
-
   return (
-    <header style={{
-      height: 64,
-      background: "#ffffff",
-      borderBottom: "1px solid #f2d6e4",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "0 24px"
-    }}>
+    <header className="w-full bg-pink-200 px-6 py-4 shadow flex justify-between items-center">
+      <h1 className="text-xl font-bold text-pink-700">
+        Period Tracker
+      </h1>
 
-      <div style={{
-        fontWeight: 700,
-        fontSize: 18,
-        color: "#ff7eb6"
-      }}>
-        CycleSense
+      <div className="text-sm text-gray-700">
+        User
       </div>
-
-      <div style={{display:"flex",gap:16}}>
-
-        <a href="/dashboard">Dashboard</a>
-        <a href="/add-cycle">Add Cycle</a>
-
-        <div style={{
-          width:36,
-          height:36,
-          borderRadius:"50%",
-          background:"#ffd6e8"
-        }}/>
-
-      </div>
-
     </header>
   )
-
 }

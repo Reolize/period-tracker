@@ -1,28 +1,32 @@
 "use client"
 
-export default function Sidebar() {
-
+export default function SideMenu() {
   return (
-    <aside style={{
-      width:220,
-      background:"#ffffff",
-      borderRight:"1px solid #f2d6e4",
-      padding:20
-    }}>
+    <aside className="w-60 bg-pink-100 min-h-screen p-4">
+      <nav className="flex flex-col gap-3">
 
-      <nav style={{display:"flex",flexDirection:"column",gap:16}}>
+        <a
+          href="/"
+          className="p-2 rounded-lg hover:bg-pink-200"
+        >
+          Dashboard
+        </a>
 
-        <a href="/dashboard">Dashboard</a>
+        <a
+          href="/add-cycle"
+          className="p-2 rounded-lg hover:bg-pink-200"
+        >
+          Add Cycle
+        </a>
 
-        <a href="/add-cycle">Log Period</a>
-
-        <a href="/predict">Prediction</a>
-
-        <a href="/analytics">Analytics</a>
+        <a
+          href="/history"
+          className="p-2 rounded-lg hover:bg-pink-200"
+        >
+          Cycle History
+        </a>
 
       </nav>
-
     </aside>
   )
-
 }
