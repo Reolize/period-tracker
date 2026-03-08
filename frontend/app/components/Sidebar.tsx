@@ -1,30 +1,26 @@
-"use client"
+import Link from "next/link"
 
-export default function SideMenu() {
+export default function Sidebar() {
   return (
-    <aside className="w-60 bg-pink-100 min-h-screen p-4">
-      <nav className="flex flex-col gap-3">
+    <aside className="w-64 bg-white shadow-md p-6">
 
-        <a
-          href="/"
-          className="p-2 rounded-lg hover:bg-pink-200"
-        >
+      <h2 className="text-lg font-bold mb-6">
+        Menu
+      </h2>
+
+      <nav className="flex flex-col gap-4">
+
+        <Link href="/dashboard" className="hover:text-pink-500">
           Dashboard
-        </a>
+        </Link>
 
-        <a
-          href="/add-cycle"
-          className="p-2 rounded-lg hover:bg-pink-200"
-        >
+        <Link href="/add-cycle" className="hover:text-pink-500">
           Add Cycle
-        </a>
+        </Link>
 
-        <a
-          href="/history"
-          className="p-2 rounded-lg hover:bg-pink-200"
-        >
-          Cycle History
-        </a>
+        <Link href="/account" className="hover:text-pink-500">
+          Account
+        </Link>
 
       </nav>
     </aside>

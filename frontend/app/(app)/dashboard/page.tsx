@@ -18,7 +18,6 @@ import {
   ResponsiveContainer
 } from "recharts"
 
-
 export default function Dashboard() {
 
   const [prediction, setPrediction] = useState<any>(null)
@@ -29,9 +28,9 @@ export default function Dashboard() {
   const [end, setEnd] = useState<Date | null>(null)
 
   const [editing, setEditing] = useState<any>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+
   const [saving, setSaving] = useState(false)
-
-
 
   async function loadData() {
 
@@ -59,13 +58,9 @@ export default function Dashboard() {
 
   }
 
-
-
   useEffect(() => {
     loadData()
   }, [])
-
-
 
   async function saveCycle(e: React.FormEvent) {
 
@@ -100,6 +95,8 @@ export default function Dashboard() {
       }
 
       resetForm()
+      setEditModalOpen(false)
+
       await loadData()
 
     } catch (err: any) {
@@ -110,8 +107,6 @@ export default function Dashboard() {
 
   }
 
-
-
   function resetForm() {
 
     setEditing(null)
@@ -119,8 +114,6 @@ export default function Dashboard() {
     setEnd(null)
 
   }
-
-
 
   async function deleteCycle(id: number) {
 
@@ -138,8 +131,6 @@ export default function Dashboard() {
 
   }
 
-
-
   function handleEdit(cycle: any) {
 
     setEditing(cycle)
@@ -147,14 +138,9 @@ export default function Dashboard() {
     setStart(new Date(cycle.start_date + "T00:00:00"))
     setEnd(new Date(cycle.end_date + "T00:00:00"))
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    })
+    setEditModalOpen(true)
 
   }
-
-
 
   function isPeriodDay(date: Date) {
 
@@ -164,18 +150,15 @@ export default function Dashboard() {
 
   }
 
-
-
   const chartData = cycles.map(c => ({
     date: c.start_date,
     length: c.cycle_length
   }))
 
-
-
   if (loading) {
 
     return (
+
       <div className="p-10 text-center text-gray-400">
         Loading dashboard...
       </div>
@@ -183,13 +166,9 @@ export default function Dashboard() {
 
   }
 
-
-
   return (
 
     <div className="p-8 max-w-7xl mx-auto space-y-10">
-
-
 
       {/* HERO STATS */}
 
@@ -220,13 +199,9 @@ export default function Dashboard() {
 
       </div>
 
-
-
-      {/* CALENDAR + FORM */}
+      {/* CALENDAR + ADD FORM */}
 
       <div className="grid lg:grid-cols-2 gap-10">
-
-
 
         <div className="card">
 
@@ -243,14 +218,10 @@ export default function Dashboard() {
 
         </div>
 
-
-
         <div className="card">
 
           <h2 className="section-title">
-
-            {editing ? "Edit Cycle" : "Add Cycle"}
-
+            Add Cycle
           </h2>
 
           <form onSubmit={saveCycle} className="space-y-4">
@@ -270,8 +241,6 @@ export default function Dashboard() {
 
             </div>
 
-
-
             <div>
 
               <label className="label">
@@ -288,46 +257,21 @@ export default function Dashboard() {
 
             </div>
 
+            <button
+              disabled={saving}
+              className="btn-primary w-full"
 
+            >
 
-            <div className="flex gap-3">
+              {saving ? "Saving..." : "Add Cycle"}
 
-              <button
-                disabled={saving}
-                className="btn-primary flex-1"
-              >
-
-                {saving
-                  ? "Saving..."
-                  : editing
-                    ? "Update"
-                    : "Add"}
-
-              </button>
-
-
-
-              {editing && (
-
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-
-              )}
-
-            </div>
+            </button>
 
           </form>
 
         </div>
 
       </div>
-
-
 
       {/* HISTORY */}
 
@@ -349,7 +293,7 @@ export default function Dashboard() {
               <div>
 
                 <div className="font-semibold">
-                  {c.start_date}
+                  {c.start_date} → {c.end_date}
                 </div>
 
                 <div className="text-xs text-gray-400">
@@ -358,23 +302,23 @@ export default function Dashboard() {
 
               </div>
 
-
-
               <div className="flex gap-4">
 
                 <button
                   onClick={() => handleEdit(c)}
                   className="link"
+
                 >
-                  Edit
-                </button>
+
+                  Edit </button>
 
                 <button
                   onClick={() => deleteCycle(c.id)}
                   className="link-delete"
+
                 >
-                  Delete
-                </button>
+
+                  Delete </button>
 
               </div>
 
@@ -385,8 +329,6 @@ export default function Dashboard() {
         </div>
 
       </div>
-
-
 
       {/* ANALYTICS */}
 
@@ -419,15 +361,88 @@ export default function Dashboard() {
 
       </div>
 
+      {/* EDIT MODAL */}
 
+      {editModalOpen && (
+
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+
+          <div className="bg-white rounded-xl p-6 w-[400px] space-y-4">
+
+            <h2 className="text-lg font-semibold">
+              Edit Cycle
+            </h2>
+
+            <form onSubmit={saveCycle} className="space-y-4">
+
+              <div>
+
+                <label className="label">
+                  Start Date
+                </label>
+
+                <DatePicker
+                  selected={start}
+                  onChange={(date: Date | null) => setStart(date)}
+                  dateFormat="yyyy-MM-dd"
+                  className="input"
+                />
+
+              </div>
+
+              <div>
+
+                <label className="label">
+                  End Date
+                </label>
+
+                <DatePicker
+                  selected={end}
+                  onChange={(date: Date | null) => setEnd(date)}
+                  minDate={start || undefined}
+                  dateFormat="yyyy-MM-dd"
+                  className="input"
+                />
+
+              </div>
+
+              <div className="flex gap-3">
+
+                <button
+                  disabled={saving}
+                  className="btn-primary flex-1"
+
+                >
+
+                  {saving ? "Saving..." : "Update"} </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditModalOpen(false)
+                    resetForm()
+                  }}
+                  className="btn-secondary"
+
+                >
+
+                  Cancel </button>
+
+              </div>
+
+            </form>
+
+          </div>
+
+        </div>
+
+      )}
 
     </div>
 
   )
 
 }
-
-
 
 function StatCard({ title, value }: { title: string, value: string }) {
 
