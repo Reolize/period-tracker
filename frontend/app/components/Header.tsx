@@ -1,19 +1,46 @@
+"use client"
+
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+
 export default function Header() {
+
+  const router = useRouter()
+
+  const handleLogout = async () => {
+
+    await fetch("http://127.0.0.1:9000/logout", {
+      method: "POST",
+      credentials: "include"
+    })
+
+    router.push("/login")
+  }
+
   return (
-    <header className="h-16 bg-white shadow flex items-center justify-between px-6">
-      <h1 className="text-xl font-semibold">
+
+    <header className="flex justify-between items-center p-4 border-b">
+
+      <Link href="/dashboard" className="font-bold">
         Period Tracker
-      </h1>
+      </Link>
 
-      <div className="flex items-center gap-4">
-        <span className="text-gray-600">
+      <div className="flex gap-4">
+
+        <Link href="/profile">
           User
-        </span>
+        </Link>
 
-        <button className="text-red-500 hover:text-red-700">
+        <button
+          onClick={handleLogout}
+          className="text-red-500"
+        >
           Logout
         </button>
+
       </div>
+
     </header>
+
   )
 }

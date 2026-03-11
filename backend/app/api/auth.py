@@ -5,6 +5,7 @@ from app.api.deps import get_db
 from app.schemas.user_schema import UserCreate, UserResponse
 from app.services.user_service import get_user_by_email, create_user
 from app.core.security import hash_password, verify_password, create_access_token
+from fastapi import Response
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,3 +40,10 @@ def login(
         "access_token": token,
         "token_type": "bearer"
     }
+    
+@router.post("/logout")
+def logout(response: Response):
+
+    response.delete_cookie("access_token")
+
+    return {"message": "logged out"}
