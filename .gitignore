@@ -1,0 +1,62 @@
+# -----------------
+# Node / Next.js
+# -----------------
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# coverage
+coverage/
+
+# env
+.env*
+!.env.example
+
+# -----------------
+# Python
+# -----------------
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# -----------------
+# ML data & artifacts (DO NOT COMMIT)
+# -----------------
+ml/data/*.csv
+ml/data/raw/
+ml/data/processed/
+ml/saved_models/
+
+# Allow small, sanitized samples if you want
+!ml/data/**/sample_*.csv
+!ml/data/**/.gitkeep
+
+# -----------------
+# OS
+# -----------------
+.DS_Store
+Thumbs.db
+
+# -----------------
+# IDE
+# -----------------
+.vscode/
+.idea/
+
+# -----------------
+# misc
+# -----------------
+*.pem
+
