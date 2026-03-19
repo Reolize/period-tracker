@@ -5,8 +5,9 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_db
 from app.api.auth_deps import get_current_user
 from app.models.cycle import Cycle
-from app.schemas.cycle_schema import PredictionResponse
+from app.schemas.cycle_schema import PredictionResponse, HealthAlert as HealthAlertSchema
 from app.services.prediction_engine import PredictionEngine
+from app.services.health_utils import assess_cycle_health
 
 from app.schemas.cycle_schema import CycleCreate, CycleResponse
 from app.services.cycle_service import create_cycle
@@ -30,6 +31,12 @@ def predict_cycle(
             status_code=400,
             detail="Not enough valid cycle data"
         )
+
+    # Attach health alerts based on cycle history
+    alerts = assess_cycle_health(cycles)
+    result["health_alerts"] = [
+        HealthAlertSchema(code=a.code, level=a.level, message=a.message) for a in alerts
+    ] or None
 
     return result
 

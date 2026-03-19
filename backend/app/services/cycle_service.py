@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from statistics import mean, stdev
 from datetime import timedelta
 import math
@@ -95,6 +96,24 @@ def create_cycle(db: Session, user_id: int, start_date, end_date):
         db.commit()
 
     return cycle
+
+
+def has_active_cycle_on_date(db: Session, user_id: int, target_date) -> bool:
+    """
+    Active means the cycle already covers target_date.
+    This prevents creating duplicate cycle starts when logging bleeding.
+    """
+    active = (
+        db.query(Cycle)
+        .filter(
+            Cycle.user_id == user_id,
+            Cycle.start_date <= target_date,
+            or_(Cycle.end_date.is_(None), Cycle.end_date >= target_date),
+        )
+        .order_by(Cycle.start_date.desc())
+        .first()
+    )
+    return active is not None
 
 def get_cycle_heatmap(db, user_id):
     cycles = db.query(Cycle).filter(Cycle.user_id == user_id).all()
