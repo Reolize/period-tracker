@@ -82,3 +82,26 @@ def upsert_daily_log(
     db.refresh(log)
     return log
 
+
+@router.delete("/{log_date}")
+def delete_daily_log(
+    log_date: date_type,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    log = (
+        db.query(DailyLog)
+        .filter(
+            DailyLog.user_id == current_user.id,
+            DailyLog.log_date == log_date,
+        )
+        .first()
+    )
+
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+
+    db.delete(log)
+    db.commit()
+    return {"message": "Log deleted"}
+

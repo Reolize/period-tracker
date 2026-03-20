@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/api"
 import DailyLogModal from "@/app/components/DailyLogModal"
+import { ChevronDown, ChevronUp, Droplet, Frown, Thermometer, Smile, Pencil } from "lucide-react"
 
 import Calendar from "react-calendar"
 import "react-calendar/dist/Calendar.css"
@@ -54,6 +55,10 @@ type DailyLogRow = {
   discharge_type: string
   physical_symptoms: string[]
   moods: string[]
+  sex?: {
+    had_sex?: boolean
+    [key: string]: any
+  }
   bbt_celsius: number | null
   notes?: string | null
 }
@@ -63,10 +68,31 @@ function toDate(value?: string | null) {
   return new Date(`${value}T00:00:00`)
 }
 
+// Helper to get local date string (YYYY-MM-DD)
+function toLocalISOString(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatLogText(text: string | null | undefined): string {
+  if (!text) return ""
+  return text
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 function formatDate(value?: string | null) {
   const date = toDate(value)
   if (!date) return "-"
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
+function formatCycleDate(value?: string | null) {
+  const date = toDate(value)
+  if (!date) return "Ongoing"
+  return date.toLocaleDateString('en-GB', { day: "numeric", month: "short", year: "numeric" })
 }
 
 function daysBetween(a: Date, b: Date) {
@@ -187,6 +213,10 @@ export default function Dashboard() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null)
   const [calendarActionOpen, setCalendarActionOpen] = useState(false)
   const [dailyLogOpen, setDailyLogOpen] = useState(false)
+  const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null)
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [cycleToDelete, setCycleToDelete] = useState<number | null>(null)
 
   async function loadData() {
 
@@ -234,8 +264,8 @@ export default function Dashboard() {
       return
     }
 
-    const start_date = start.toISOString().slice(0, 10)
-    const end_date = end.toISOString().slice(0, 10)
+    const start_date = toLocalISOString(start)
+    const end_date = end ? toLocalISOString(end) : null
 
     setSaving(true)
 
@@ -278,20 +308,25 @@ export default function Dashboard() {
 
   }
 
-  async function deleteCycle(id: number) {
+  async function confirmDelete(id: number) {
+    setCycleToDelete(id)
+    setDeleteModalOpen(true)
+  }
 
-    if (!confirm("Delete cycle?")) return
+  async function executeDelete() {
+    if (!cycleToDelete) return
 
     try {
-
-      await apiFetch(`/cycles/${id}`, { method: "DELETE" })
-
-      setCycles(prev => prev.filter(c => c.id !== id))
-
+      await apiFetch(`/cycles/${cycleToDelete}`, { method: "DELETE" })
+      setCycles(prev => prev.filter(c => c.id !== cycleToDelete))
+      // Refresh the rest of the data (predictions, charts, etc.)
+      await loadData()
     } catch (err: any) {
       alert(err.message)
+    } finally {
+      setDeleteModalOpen(false)
+      setCycleToDelete(null)
     }
-
   }
 
   async function quickLogPeriodForDate(logDate: string) {
@@ -305,14 +340,14 @@ export default function Dashboard() {
         moods: [],
         sex: {},
         bbt_celsius: null,
-        notes: "Logged from calendar quick action.",
+        notes: "", // Removed the automatic note so it doesn't trigger the dot when all other fields are empty
       }),
     })
     await loadData()
   }
 
   function handleCalendarDayClick(date: Date) {
-    const iso = date.toISOString().slice(0, 10)
+    const iso = toLocalISOString(date)
     setSelectedCalendarDate(iso)
     setCalendarActionOpen(true)
   }
@@ -322,7 +357,7 @@ export default function Dashboard() {
     setEditing(cycle)
 
     setStart(new Date(cycle.start_date + "T00:00:00"))
-    setEnd(new Date(cycle.end_date + "T00:00:00"))
+    setEnd(cycle.end_date ? new Date(cycle.end_date + "T00:00:00") : null)
 
     setEditModalOpen(true)
 
@@ -330,15 +365,19 @@ export default function Dashboard() {
 
   function isPeriodDay(date: Date) {
 
-    const d = date.toISOString().slice(0, 10)
+    const d = toLocalISOString(date)
 
     return cycles.some(c => d >= c.start_date && d <= c.end_date)
 
   }
 
-  function hasDailyLogDay(date: Date) {
-    const d = date.toISOString().slice(0, 10)
-    return dailyLogs.some((l) => l.log_date === d)
+  function getLogsForCycle(cycle: CycleRow) {
+    return dailyLogs.filter(log => {
+      const logDate = log.log_date
+      const start = cycle.start_date
+      const end = cycle.end_date || "9999-12-31" // If ongoing, include all logs after start
+      return logDate >= start && logDate <= end
+    }).sort((a, b) => a.log_date.localeCompare(b.log_date))
   }
 
   const chartData = cycles.map(c => ({
@@ -353,9 +392,12 @@ export default function Dashboard() {
     ? cycleDay / prediction.cycle_length_prediction
     : 0
   const fertility = getFertilityStatus(prediction)
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = toLocalISOString(new Date())
   const todayLog = dailyLogs.find((l) => l.log_date === todayIso) ?? null
   const latestLog = dailyLogs[0] ?? null
+
+  // Check if current cycle is unusually long (>45 days)
+  const isUnusuallyLongCycle = latestCycle && !latestCycle.end_date && cycleDay && cycleDay > 45
 
   if (loading) {
     return (
@@ -416,6 +458,15 @@ export default function Dashboard() {
               />
               <StatusPill label={`Confidence ${prediction?.confidence_score ?? "-"}%`} tone="neutral" />
             </div>
+            
+            {isUnusuallyLongCycle && (
+              <div className="mt-4 bg-[#fff4ea] border border-[#ffe0c2] text-[#9a5a08] p-3 rounded-xl text-sm flex items-start gap-2 animate-pulse">
+                <span className="text-lg">⚠️</span>
+                <div>
+                  <strong>Long cycle detected:</strong> Your current cycle has lasted for {cycleDay} days. Did you forget to log your period?
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-center">
@@ -471,9 +522,9 @@ export default function Dashboard() {
         <h2 className="section-title mb-2">Today snapshot</h2>
         {todayLog ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <InfoCard title="Bleeding" value={todayLog.bleeding_flow} />
-            <InfoCard title="Mood" value={todayLog.moods[0] ?? "-"} />
-            <InfoCard title="Symptoms" value={todayLog.physical_symptoms.slice(0, 2).join(", ") || "-"} />
+            <InfoCard title="Bleeding" value={formatLogText(todayLog.bleeding_flow)} />
+            <InfoCard title="Mood" value={formatLogText(todayLog.moods[0]) || "-"} />
+            <InfoCard title="Symptoms" value={todayLog.physical_symptoms.slice(0, 2).map(formatLogText).join(", ") || "-"} />
             <InfoCard title="BBT" value={todayLog.bbt_celsius != null ? `${todayLog.bbt_celsius}°C` : "-"} />
           </div>
         ) : latestLog ? (
@@ -482,9 +533,9 @@ export default function Dashboard() {
               No log for today yet. Last log was on {formatDate(latestLog.log_date)}.
             </p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <InfoCard title="Bleeding" value={latestLog.bleeding_flow} />
-              <InfoCard title="Mood" value={latestLog.moods[0] ?? "-"} />
-              <InfoCard title="Symptoms" value={latestLog.physical_symptoms.slice(0, 2).join(", ") || "-"} />
+              <InfoCard title="Bleeding" value={formatLogText(latestLog.bleeding_flow)} />
+              <InfoCard title="Mood" value={formatLogText(latestLog.moods[0]) || "-"} />
+              <InfoCard title="Symptoms" value={latestLog.physical_symptoms.slice(0, 2).map(formatLogText).join(", ") || "-"} />
               <InfoCard title="BBT" value={latestLog.bbt_celsius != null ? `${latestLog.bbt_celsius}°C` : "-"} />
             </div>
           </div>
@@ -493,94 +544,180 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* CALENDAR + QUICK CYCLE INPUT */}
-      <section className="grid lg:grid-cols-1 gap-6">
-        <div className="card">
-          <h2 className="section-title">Cycle calendar</h2>
-          <p className="text-sm text-gray-500 mb-3">
-            Tap any date to quickly log period or open daily log editor.
-          </p>
-          <Calendar
-            tileClassName={({ date }) => {
-              const classes: string[] = []
-              if (isPeriodDay(date)) classes.push("period-day")
-              if (hasDailyLogDay(date)) classes.push("has-log-day")
-              return classes.join(" ") || undefined
-            }}
-            tileContent={({ date, view }) => {
-              if (view !== "month") return null
-              if (!hasDailyLogDay(date)) return null
-              return <span className="log-dot" />
-            }}
-            onClickDay={handleCalendarDayClick}
-          />
-        </div>
-      </section>
-
-      {/* HISTORY + TRENDS TABS */}
-      <section className="card">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h2 className="section-title mb-0">Cycle details</h2>
-          <div className="tab-wrap">
-            <button
-              className={`tab-btn ${activeTab === "history" ? "tab-btn-active" : ""}`}
-              onClick={() => setActiveTab("history")}
-            >
-              History
-            </button>
-            <button
-              className={`tab-btn ${activeTab === "trends" ? "tab-btn-active" : ""}`}
-              onClick={() => setActiveTab("trends")}
-            >
-              Trends
-            </button>
+      {/* MASTER-DETAIL LAYOUT FOR CALENDAR & HISTORY */}
+      <div className="grid lg:grid-cols-2 gap-8 items-start">
+        {/* CALENDAR + QUICK CYCLE INPUT */}
+        <section className="card flex flex-col items-center overflow-hidden w-full">
+          <div className="w-full text-left">
+            <h2 className="section-title">Cycle calendar</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Tap any date to quickly log period or open daily log editor.
+            </p>
           </div>
-        </div>
+          <div className="w-full flex justify-center pb-4 mt-2">
+            <Calendar
+              key={JSON.stringify(dailyLogs)} // Force re-render when daily logs change
+              value={null} // Prevents internal state from keeping the tile highlighted after closing
+              className="custom-calendar compact-calendar"
+              tileClassName={({ date }) => {
+                const classes: string[] = []
+                if (isPeriodDay(date)) classes.push("period-day")
+                return classes.join(" ") || undefined
+              }}
+              onClickDay={handleCalendarDayClick}
+            />
+          </div>
+        </section>
 
-        {activeTab === "history" ? (
-          <div className="space-y-2">
-            {cycles.map(c => (
-              <div key={c.id} className="history-row">
-                <div>
-                  <div className="font-semibold">{c.start_date} → {c.end_date}</div>
-                  <div className="text-xs text-gray-400">{c.period_length ?? "-"} day period</div>
-                </div>
-                <div className="flex gap-4">
-                  <button onClick={() => handleEdit(c)} className="link">Edit</button>
-                  <button onClick={() => deleteCycle(c.id)} className="link-delete">Delete</button>
-                </div>
+        {/* HISTORY + TRENDS TABS */}
+        <section className="card h-full flex flex-col w-full">
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <h2 className="section-title mb-0">Cycle details</h2>
+            <div className="tab-wrap">
+              <button
+                className={`tab-btn ${activeTab === "history" ? "tab-btn-active" : ""}`}
+                onClick={() => setActiveTab("history")}
+              >
+                History
+              </button>
+              <button
+                className={`tab-btn ${activeTab === "trends" ? "tab-btn-active" : ""}`}
+                onClick={() => setActiveTab("trends")}
+              >
+                Trends
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 mt-2">
+            {activeTab === "history" ? (
+              <div className="space-y-4">
+                {cycles.map(c => {
+                  const isExpanded = expandedCycleId === c.id
+                  const cycleLogs = getLogsForCycle(c)
+                  
+                  return (
+                    <div key={c.id} className="flex flex-col bg-white rounded-2xl border border-[#f0e8ee] hover:shadow-md transition-shadow overflow-hidden">
+                      {/* ACCORDION HEADER */}
+                      <div 
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4 cursor-pointer"
+                        onClick={() => setExpandedCycleId(isExpanded ? null : c.id)}
+                      >
+                        <div className="flex-1">
+                          <div className="font-bold text-lg sm:text-xl text-[#3f2b4d] tracking-tight flex items-center flex-wrap gap-2">
+                            <span>{formatCycleDate(c.start_date)}</span>
+                            <span className="text-[#b06a94] font-medium text-sm">→</span>
+                            <span>{c.end_date ? formatCycleDate(c.end_date) : "Ongoing"}</span>
+                          </div>
+                          <div className="text-sm text-[#7d6b86] font-medium mt-1.5">{c.period_length ? `${c.period_length} day period` : "Tracking..."}</div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleEdit(c); }} 
+                            className="text-[#ff7eb6] font-medium text-sm hover:text-[#e05896] hover:bg-[#fff0f6] px-4 py-2 rounded-full transition-colors border border-transparent hover:border-[#ff7eb6]"
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); confirmDelete(c.id); }} 
+                            className="text-[#ff5c6b] font-medium text-sm hover:text-[#d94452] hover:bg-[#fff0f4] px-4 py-2 rounded-full transition-colors border border-transparent hover:border-[#ff5c6b]"
+                          >
+                            Delete
+                          </button>
+                          <div className="ml-2 text-[#b06a94]">
+                            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ACCORDION CONTENT (DAILY LOGS SUMMARY) */}
+                      {isExpanded && (
+                        <div className="border-t border-[#f0e8ee] bg-[#faf6f8] p-6 text-sm">
+                          <h4 className="font-semibold text-[#3f2b4d] mb-4 flex items-center gap-2">
+                            <span className="text-lg">✨</span> Cycle Summary
+                          </h4>
+                          
+                          {cycleLogs.length === 0 ? (
+                            <p className="text-[#7d6b86] italic">No daily logs recorded for this cycle.</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {cycleLogs.map(log => {
+                                  // Format display string for each day
+                                  const dateStr = formatDate(log.log_date)
+                                  const flow = log.bleeding_flow !== "none" ? `Flow: ${formatLogText(log.bleeding_flow)}` : ""
+                                  const discharge = log.discharge_type !== "none" ? `Discharge: ${formatLogText(log.discharge_type)}` : ""
+                                  const symps = log.physical_symptoms.length ? `Symptoms: ${log.physical_symptoms.map(formatLogText).join(", ")}` : ""
+                                  const moods = log.moods.length ? `Moods: ${log.moods.map(formatLogText).join(", ")}` : ""
+                                  const bbt = log.bbt_celsius ? `BBT: ${log.bbt_celsius}°C` : ""
+                                
+                                // Skip rendering if it's an empty log
+                                if (!flow && !discharge && !symps && !moods && !bbt && !log.notes) return null;
+
+                                return (
+                                  <div key={log.id} className="flex flex-col sm:flex-row gap-2 sm:gap-4 p-3 bg-white rounded-xl border border-[#f0e8ee] relative group hover:border-[#f2d6e4] transition-colors">
+                                    <div className="font-medium text-[#3f2b4d] whitespace-nowrap min-w-[60px] flex items-center gap-2">
+                                      {dateStr}
+                                    </div>
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#7d6b86] flex-1">
+                                      {flow && <span className="flex items-center gap-1"><Droplet size={14} className="text-red-400"/> {flow}</span>}
+                                      {discharge && <span className="flex items-center gap-1"><Droplet size={14} className="text-blue-300"/> {discharge}</span>}
+                                      {symps && <span className="flex items-center gap-1"><Frown size={14} className="text-orange-400"/> {symps}</span>}
+                                      {moods && <span className="flex items-center gap-1"><Smile size={14} className="text-yellow-400"/> {moods}</span>}
+                                      {bbt && <span className="flex items-center gap-1"><Thermometer size={14} className="text-purple-400"/> {bbt}</span>}
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedCalendarDate(log.log_date)
+                                        setDailyLogOpen(true)
+                                      }}
+                                      className="absolute right-3 top-3 sm:static p-1.5 text-gray-400 hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                      title="Edit daily log"
+                                    >
+                                      <Pencil size={16} />
+                                    </button>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            ))}
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData}>
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="length" stroke="#ff7eb6" strokeWidth={3} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="length" stroke="#ff7eb6" strokeWidth={3} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </section>
+        </section>
+      </div>
 
       {/* EDIT MODAL */}
 
       {editModalOpen && (
 
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
 
-          <div className="bg-white rounded-xl p-6 w-[400px] space-y-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-[420px] shadow-xl border border-[#f0e8ee]">
 
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-2xl font-bold text-[#3f2b4d] mb-6">
               Edit Cycle
             </h2>
 
-            <form onSubmit={saveCycle} className="space-y-4">
+            <form onSubmit={saveCycle} className="space-y-5">
 
               <div>
 
-                <label className="label">
+                <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">
                   Start Date
                 </label>
 
@@ -588,14 +725,14 @@ export default function Dashboard() {
                   selected={start}
                   onChange={(date: Date | null) => setStart(date)}
                   dateFormat="yyyy-MM-dd"
-                  className="input"
+                  className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
                 />
 
               </div>
 
               <div>
 
-                <label className="label">
+                <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">
                   End Date
                 </label>
 
@@ -604,32 +741,33 @@ export default function Dashboard() {
                   onChange={(date: Date | null) => setEnd(date)}
                   minDate={start || undefined}
                   dateFormat="yyyy-MM-dd"
-                  className="input"
+                  isClearable
+                  placeholderText="Ongoing"
+                  className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
                 />
 
               </div>
 
-              <div className="flex gap-3">
-
-                <button
-                  disabled={saving}
-                  className="btn-primary flex-1"
-
-                >
-
-                  {saving ? "Saving..." : "Update"} </button>
-
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setEditModalOpen(false)
                     resetForm()
                   }}
-                  className="btn-secondary"
+                  className="flex-1 px-4 py-3 rounded-xl border border-[#f0e8ee] text-[#7d6b86] font-medium hover:bg-[#faf6f8] transition-colors"
 
                 >
 
                   Cancel </button>
+
+                <button
+                  disabled={saving}
+                  className="flex-1 px-4 py-3 rounded-xl bg-[#ff7eb6] text-white font-medium hover:bg-[#e05896] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm shadow-[#ff7eb6]/30"
+
+                >
+
+                  {saving ? "Saving..." : "Update"} </button>
 
               </div>
 
@@ -641,9 +779,41 @@ export default function Dashboard() {
 
       )}
 
-      {calendarActionOpen && (
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm border border-[var(--border)]">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-[400px] shadow-xl border border-[#f0e8ee] text-center">
+            <h2 className="text-2xl font-bold text-[#3f2b4d] mb-3">
+              Delete this cycle?
+            </h2>
+            <p className="text-[#7d6b86] mb-8 text-sm leading-relaxed">
+              This will remove the cycle dates from your calendar. Don't worry, your daily logs (symptoms, moods) for these days will not be deleted.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false)
+                  setCycleToDelete(null)
+                }}
+                className="flex-1 px-4 py-3 rounded-xl border border-[#f0e8ee] text-[#7d6b86] font-medium hover:bg-[#faf6f8] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeDelete}
+                className="flex-1 px-4 py-3 rounded-xl bg-[#ff5c6b] text-white font-medium hover:bg-[#d94452] transition-colors shadow-sm shadow-[#ff5c6b]/30"
+              >
+                Delete Cycle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {calendarActionOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => { setCalendarActionOpen(false); setSelectedCalendarDate(null); }}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-sm border border-[var(--border)]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold">Calendar action</h3>
             <p className="text-sm text-gray-500 mt-1 mb-4">{selectedCalendarDate}</p>
             <div className="space-y-2">
@@ -654,6 +824,7 @@ export default function Dashboard() {
                   try {
                     await quickLogPeriodForDate(selectedCalendarDate)
                     setCalendarActionOpen(false)
+                    setSelectedCalendarDate(null)
                   } catch (err: any) {
                     alert(err?.message ?? "Failed to log period")
                   }
@@ -672,7 +843,7 @@ export default function Dashboard() {
               </button>
               <button
                 className="w-full text-sm text-gray-500 py-1"
-                onClick={() => setCalendarActionOpen(false)}
+                onClick={() => { setCalendarActionOpen(false); setSelectedCalendarDate(null); }}
               >
                 Cancel
               </button>
@@ -684,10 +855,14 @@ export default function Dashboard() {
       <DailyLogModal
         hideTrigger
         open={dailyLogOpen}
-        onOpenChange={setDailyLogOpen}
+        onOpenChange={(open) => {
+          setDailyLogOpen(open)
+          if (!open) setSelectedCalendarDate(null)
+        }}
         defaultDate={selectedCalendarDate ?? undefined}
-        initialData={dailyLogs.find((l) => l.log_date === selectedCalendarDate) ?? null}
+        initialData={(dailyLogs.find((l) => l.log_date === selectedCalendarDate) as any) ?? null}
         onSaved={() => loadData()}
+        onDeleted={() => loadData()}
       />
 
     </div>

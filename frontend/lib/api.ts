@@ -13,6 +13,7 @@ export async function apiFetch(
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
+    cache: "no-store", // Force no cache for all API requests to prevent ghost state
   })
 
   if (res.status === 401) {

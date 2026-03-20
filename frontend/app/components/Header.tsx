@@ -1,46 +1,101 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { useState } from "react"
+import { Plus, User, LogOut, ChevronDown } from "lucide-react"
 
 export default function Header() {
-
   const router = useRouter()
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const handleLogout = async () => {
-
     await fetch("http://127.0.0.1:9000/logout", {
       method: "POST",
       credentials: "include"
     })
-
     router.push("/login")
   }
 
+  // Get current date formatted like "Monday, Mar 21"
+  const todayStr = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  })
+
   return (
-
-    <header className="flex justify-between items-center p-4 border-b">
-
-      <Link href="/dashboard" className="font-bold">
-        Period Tracker
-      </Link>
-
-      <div className="flex gap-4">
-
-        <Link href="/profile">
-          User
-        </Link>
-
-        <button
-          onClick={handleLogout}
-          className="text-red-500"
-        >
-          Logout
-        </button>
-
+    <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#f0e8ee] sticky top-0 z-30 flex items-center justify-between px-6 lg:px-8">
+      
+      {/* Left side: Greeting / Date */}
+      <div className="flex flex-col">
+        <span className="text-xs font-semibold text-[#b06a94] uppercase tracking-wider">Today</span>
+        <span className="text-[15px] font-bold text-[#3f2b4d]">{todayStr}</span>
       </div>
 
-    </header>
+      {/* Right side: Actions */}
+      <div className="flex items-center gap-4">
+        
+        {/* Quick Action Button */}
+        <button 
+          onClick={() => router.push("/dashboard")} // Or open modal directly if context allows
+          className="hidden sm:flex items-center gap-1.5 bg-[#ff7eb6] hover:bg-[#e05896] text-white px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-sm shadow-[#ff7eb6]/30"
+        >
+          <Plus size={16} strokeWidth={3} />
+          Log Symptoms
+        </button>
 
+        <button 
+          onClick={() => router.push("/dashboard")}
+          className="sm:hidden flex items-center justify-center bg-[#ff7eb6] text-white w-9 h-9 rounded-full shadow-sm shadow-[#ff7eb6]/30"
+        >
+          <Plus size={18} strokeWidth={3} />
+        </button>
+
+        {/* Vertical Divider */}
+        <div className="w-px h-6 bg-[#f0e8ee] hidden sm:block"></div>
+
+        {/* User Profile Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setUserMenuOpen(!userMenuOpen)}
+            className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full hover:bg-[#faf6f8] border border-transparent hover:border-[#f0e8ee] transition-all"
+          >
+            <div className="w-8 h-8 rounded-full bg-[#f7f1ff] text-[#b06a94] flex items-center justify-center border border-[#e0d4f0]">
+              <User size={16} />
+            </div>
+            <ChevronDown size={14} className="text-[#7d6b86]" />
+          </button>
+
+          {userMenuOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-[#f0e8ee] py-2 overflow-hidden animate-fadeSlideIn">
+              <div className="px-4 py-2 border-b border-[#f0e8ee] mb-1">
+                <p className="text-sm font-semibold text-[#3f2b4d]">My Account</p>
+                <p className="text-xs text-[#7d6b86] truncate">user@example.com</p>
+              </div>
+              
+              <button 
+                onClick={() => {
+                  router.push("/account")
+                  setUserMenuOpen(false)
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[#3f2b4d] hover:bg-[#faf6f8] transition-colors text-left"
+              >
+                <User size={16} className="text-[#b06a94]" />
+                Profile Settings
+              </button>
+              
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+              >
+                <LogOut size={16} />
+                Log out
+              </button>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </header>
   )
 }

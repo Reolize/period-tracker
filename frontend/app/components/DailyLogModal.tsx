@@ -12,10 +12,11 @@ import type {
   SymptomCode,
 } from "@/app/types/tracking"
 
-type Props = {
+  type Props = {
   defaultDate?: string // ISODate
   initialData?: Partial<DailyLog> | null
   onSaved?: (saved: DailyLog) => void
+  onDeleted?: () => void
   saveEndpoint?: string // default: "/daily-logs"
   triggerLabel?: string
   open?: boolean
@@ -68,7 +69,10 @@ const MOODS: { code: MoodCode, label: string }[] = [
 
 function todayISO() {
   const d = new Date()
-  return d.toISOString().slice(0, 10)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function toggleInList<T extends string>(list: T[], value: T): T[] {
@@ -104,6 +108,7 @@ export default function DailyLogModal({
   defaultDate,
   initialData,
   onSaved,
+  onDeleted,
   saveEndpoint = "/daily-logs",
   triggerLabel = "Log today",
   open,
@@ -200,6 +205,25 @@ export default function DailyLogModal({
       reset()
     } catch (err: any) {
       setError(err?.message ?? "Failed to save daily log")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteLog() {
+    if (!initialData?.log_date) return
+    if (!confirm("Delete this log?")) return
+
+    setSaving(true)
+    try {
+      await apiFetch(`${saveEndpoint}/${initialData.log_date}`, {
+        method: "DELETE",
+      })
+      onDeleted?.()
+      setModalOpen(false)
+      reset()
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to delete daily log")
     } finally {
       setSaving(false)
     }
@@ -442,6 +466,16 @@ export default function DailyLogModal({
             </div>
 
             <div className="p-5 border-t border-[var(--border)] flex items-center gap-3">
+              {initialData?.log_date && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200"
+                  onClick={deleteLog}
+                >
+                  Delete
+                </button>
+              )}
               <button disabled={saving} className="btn-primary flex-1" onClick={save}>
                 {saving ? "Saving..." : "Save daily log"}
               </button>

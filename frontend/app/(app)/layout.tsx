@@ -7,13 +7,16 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen">
-      <Sidebar />
+    <div className="flex h-screen bg-[#fff7fb] overflow-hidden">
+      {/* Sidebar - Hidden on mobile, shown on md screens */}
+      <div className="hidden md:block">
+        <Sidebar />
+      </div>
 
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden relative">
         <Header />
 
-        <main className="p-6 flex-1">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>
