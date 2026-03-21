@@ -16,6 +16,9 @@ class UserSetupUpsert(BaseModel):
 
     contraception_method: ContraceptionMethod = ContraceptionMethod.none
     app_goal: AppGoal = AppGoal.track_cycle
+    date_of_birth: Optional[date] = None
+    height_cm: Optional[int] = None
+    weight_kg: Optional[int] = None
 
 
 class UserSetupResponse(BaseModel):
@@ -27,6 +30,9 @@ class UserSetupResponse(BaseModel):
     avg_cycle_length_days: Optional[int] = None
     contraception_method: ContraceptionMethod
     app_goal: AppGoal
+    date_of_birth: Optional[date] = None
+    height_cm: Optional[int] = None
+    weight_kg: Optional[int] = None
 
     class Config:
         from_attributes = True

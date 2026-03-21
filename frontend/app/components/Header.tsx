@@ -1,18 +1,25 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus, User, LogOut, ChevronDown } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 export default function Header() {
   const router = useRouter()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Fetch the logged-in user's email
+    apiFetch("/users/me")
+      .then(res => setUserEmail(res.email))
+      .catch(err => console.error("Failed to load user email:", err))
+  }, [])
 
   const handleLogout = async () => {
-    await fetch("http://127.0.0.1:9000/logout", {
-      method: "POST",
-      credentials: "include"
-    })
+    // Clear token instead of old logout logic if it was using token
+    localStorage.removeItem("token")
     router.push("/login")
   }
 
@@ -70,7 +77,9 @@ export default function Header() {
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-[#f0e8ee] py-2 overflow-hidden animate-fadeSlideIn">
               <div className="px-4 py-2 border-b border-[#f0e8ee] mb-1">
                 <p className="text-sm font-semibold text-[#3f2b4d]">My Account</p>
-                <p className="text-xs text-[#7d6b86] truncate">user@example.com</p>
+                <p className="text-xs text-[#7d6b86] truncate">
+                  {userEmail || "Loading..."}
+                </p>
               </div>
               
               <button 

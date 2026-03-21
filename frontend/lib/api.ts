@@ -6,26 +6,34 @@ export async function apiFetch(
 ) {
   const token = localStorage.getItem("token")
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-    cache: "no-store", // Force no cache for all API requests to prevent ghost state
-  })
+  try {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }),
+        ...options.headers,
+      },
+      cache: "no-store", // Force no cache for all API requests to prevent ghost state
+    })
 
-  if (res.status === 401) {
-    localStorage.removeItem("token")
-    window.location.href = "/login"
-    return
+    if (res.status === 401) {
+      localStorage.removeItem("token")
+      window.location.href = "/login"
+      return
+    }
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: "API error" }))
+      throw new Error(error.detail || "API error")
+    }
+
+    return await res.json()
+  } catch (error: any) {
+    // Handle network errors like "Failed to fetch"
+    if (error.name === "TypeError" && error.message === "Failed to fetch") {
+      throw new Error("Unable to connect to the server. Please check your internet connection or make sure the backend server is running.")
+    }
+    throw error
   }
-
-  if (!res.ok) {
-    const error = await res.json()
-    throw new Error(error.detail || "API error")
-  }
-
-  return res.json()
 }

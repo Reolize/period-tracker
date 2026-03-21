@@ -4,8 +4,8 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center gap-6">
 
-      <h1 className="text-5xl font-bold">
-        Period Tracker
+      <h1 className="text-5xl font-bold flex items-center gap-3">
+        <span className="text-[#ff7eb6]">💧</span> Period Tracker
       </h1>
 
       <p className="text-gray-500 text-lg">

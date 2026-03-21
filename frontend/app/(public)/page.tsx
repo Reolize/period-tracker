@@ -10,8 +10,8 @@ export default function HomePage() {
 
         <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-pink-50 to-white text-center space-y-6">
 
-            <h1 className="text-4xl font-bold">
-                Period Tracker
+            <h1 className="text-4xl font-bold flex items-center justify-center gap-3">
+                <span className="text-[#ff7eb6]">💧</span> Period Tracker
             </h1>
 
             <p className="text-gray-500 max-w-md">

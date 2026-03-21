@@ -93,10 +93,11 @@ def get_cycles(
 def update_cycle(
     cycle_id:int,
     cycle_data:CycleCreate,
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
 
-    cycle=db.query(Cycle).filter(Cycle.id==cycle_id).first()
+    cycle=db.query(Cycle).filter(Cycle.id==cycle_id, Cycle.user_id==current_user.id).first()
 
     if not cycle:
         raise HTTPException(status_code=404,detail="Cycle not found")
@@ -112,10 +113,11 @@ def update_cycle(
 @router.delete("/{cycle_id}")
 def delete_cycle(
     cycle_id:int,
-    db:Session=Depends(get_db)
+    db:Session=Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
 
-    cycle=db.query(Cycle).filter(Cycle.id==cycle_id).first()
+    cycle=db.query(Cycle).filter(Cycle.id==cycle_id, Cycle.user_id==current_user.id).first()
 
     if not cycle:
         raise HTTPException(status_code=404,detail="Cycle not found")

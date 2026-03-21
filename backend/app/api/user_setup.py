@@ -43,6 +43,9 @@ def upsert_user_setup(
             avg_cycle_length_days=payload.avg_cycle_length_days,
             contraception_method=payload.contraception_method,
             app_goal=payload.app_goal,
+            date_of_birth=payload.date_of_birth,
+            height_cm=payload.height_cm,
+            weight_kg=payload.weight_kg,
         )
         db.add(setup)
     else:
@@ -51,6 +54,9 @@ def upsert_user_setup(
         setup.avg_cycle_length_days = payload.avg_cycle_length_days
         setup.contraception_method = payload.contraception_method
         setup.app_goal = payload.app_goal
+        setup.date_of_birth = payload.date_of_birth
+        setup.height_cm = payload.height_cm
+        setup.weight_kg = payload.weight_kg
 
     db.commit()
     db.refresh(setup)

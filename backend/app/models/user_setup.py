@@ -49,6 +49,11 @@ class UserSetup(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
+    # ML & Health Data
+    date_of_birth = Column(Date, nullable=True)
+    height_cm = Column(Integer, nullable=True)
+    weight_kg = Column(Integer, nullable=True)
+
     last_period_start_date = Column(Date, nullable=True)
     avg_period_length_days = Column(Integer, nullable=True)  # e.g. 3-10
     avg_cycle_length_days = Column(Integer, nullable=True)  # e.g. 21-45
