@@ -22,6 +22,7 @@ export type AppGoal =
   | "predict_period"
   | "manage_symptoms"
   | "conceive"
+  | "track_pregnancy"
   | "avoid_pregnancy"
   | "general_health"
 
@@ -71,6 +72,8 @@ export interface DailyLog {
   moods: MoodCode[]
   sex: SexLog
   bbt_celsius: number | null
+  weight_kg: number | null
+  pregnancy_week: number | null
   notes?: string | null
 }
 

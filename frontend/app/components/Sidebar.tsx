@@ -10,9 +10,9 @@ export default function Sidebar() {
   const navItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Insights", path: "/trends", icon: LineChart },
-    { name: "Health Library", path: "/library", icon: BookOpen },
+    { name: "Health Library", path: "/health-library", icon: BookOpen },
     { name: "Notifications", path: "#", icon: Bell },
-    { name: "Data Privacy", path: "#", icon: ShieldCheck },
+    { name: "Data Privacy", path: "/data-privacy", icon: ShieldCheck },
     { name: "Settings", path: "/account", icon: Settings },
   ]
 

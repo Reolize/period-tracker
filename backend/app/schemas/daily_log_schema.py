@@ -19,6 +19,8 @@ class DailyLogUpsert(BaseModel):
     sex: Dict[str, Any] = Field(default_factory=dict)
 
     bbt_celsius: Optional[float] = Field(default=None, ge=30.0, le=45.0)
+    weight_kg: Optional[float] = Field(default=None, ge=20.0, le=300.0)
+    pregnancy_week: Optional[int] = Field(default=None, ge=0, le=42)
     notes: Optional[str] = None
 
 

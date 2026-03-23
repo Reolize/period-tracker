@@ -20,7 +20,7 @@ export default function Header() {
   const handleLogout = async () => {
     // Clear token instead of old logout logic if it was using token
     localStorage.removeItem("token")
-    router.push("/login")
+    router.push("/")
   }
 
   // Get current date formatted like "Monday, Mar 21"

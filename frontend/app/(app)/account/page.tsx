@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api"
-import { User, Mail, Calendar, LogOut, ShieldAlert, Edit2, Check, Download, Trash2, Save, RotateCcw, Info, Scale, Ruler, CalendarDays } from "lucide-react"
+import { User, Mail, Calendar, LogOut, ShieldAlert, Edit2, Check, Download, Trash2, Save, RotateCcw, Info, Scale, Ruler, CalendarDays, Target, Baby, Heart, ChevronRight, X } from "lucide-react"
 
 type CycleRow = {
   id: number
@@ -13,6 +14,7 @@ type CycleRow = {
 }
 
 export default function AccountPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -35,6 +37,11 @@ export default function AccountPage() {
   const [heightCm, setHeightCm] = useState<number | "">("")
   const [weightKg, setWeightKg] = useState<number | "">("")
   const [profileSaving, setProfileSaving] = useState(false)
+
+  // Mode Switcher States
+  const [showPregnancyModal, setShowPregnancyModal] = useState(false)
+  const [pregnancyDueDate, setPregnancyDueDate] = useState("")
+  const [updatingGoal, setUpdatingGoal] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -144,6 +151,27 @@ export default function AccountPage() {
       alert(err.message)
     } finally {
       setProfileSaving(false)
+    }
+  }
+
+  async function handleUpdateGoal(goal: string, dueDate?: string) {
+    setUpdatingGoal(true)
+    try {
+      await apiFetch("/user-setup/goal", {
+        method: "PATCH",
+        body: JSON.stringify({
+          app_goal: goal,
+          pregnancy_due_date: dueDate || null
+        })
+      })
+      
+      // Successfully updated, redirect to dashboard
+      router.push("/dashboard")
+    } catch (err: any) {
+      alert(err.message || "Failed to update goal")
+    } finally {
+      setUpdatingGoal(false)
+      setShowPregnancyModal(false)
     }
   }
 
@@ -472,6 +500,76 @@ export default function AccountPage() {
         </div>
       </section>
 
+      {/* NEW CARD: My Goal (Mode Switcher) */}
+      <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-[#3f2b4d] flex items-center gap-2">
+            <Target className="text-[#ff7eb6]" size={22} />
+            My Goal
+          </h2>
+          <p className="text-sm text-[#7d6b86] mt-1">Select your primary focus to personalize your experience.</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button 
+            onClick={() => handleUpdateGoal("track_cycle")}
+            disabled={updatingGoal}
+            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
+              setupData?.app_goal === "track_cycle" 
+                ? "bg-[#fff0f6] border-[#ff7eb6] shadow-sm" 
+                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+              setupData?.app_goal === "track_cycle" ? "bg-white text-[#ff7eb6]" : "bg-[#faf6f8] text-[#7d6b86]"
+            }`}>
+              <Calendar size={24} />
+            </div>
+            <p className={`font-bold text-sm ${setupData?.app_goal === "track_cycle" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Track Cycle</p>
+            <p className="text-[10px] text-[#b0a0b5] mt-1">Log periods & symptoms</p>
+          </button>
+
+          <button 
+            onClick={() => handleUpdateGoal("conceive")}
+            disabled={updatingGoal}
+            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
+              setupData?.app_goal === "conceive" 
+                ? "bg-[#fff0f6] border-[#ff7eb6] shadow-sm" 
+                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+              setupData?.app_goal === "conceive" ? "bg-white text-[#ff7eb6]" : "bg-[#faf6f8] text-[#7d6b86]"
+            }`}>
+              <Heart size={24} />
+            </div>
+            <p className={`font-bold text-sm ${setupData?.app_goal === "conceive" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Conceive</p>
+            <p className="text-[10px] text-[#b0a0b5] mt-1">Track ovulation window</p>
+          </button>
+
+          <button 
+            onClick={() => {
+              if (setupData?.app_goal === "track_pregnancy") return
+              setShowPregnancyModal(true)
+            }}
+            disabled={updatingGoal}
+            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
+              setupData?.app_goal === "track_pregnancy" 
+                ? "bg-[#f7f1ff] border-[#a78bfa] shadow-sm" 
+                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
+            }`}
+          >
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+              setupData?.app_goal === "track_pregnancy" ? "bg-white text-[#a78bfa]" : "bg-[#faf6f8] text-[#7d6b86]"
+            }`}>
+              <Baby size={24} />
+            </div>
+            <p className={`font-bold text-sm ${setupData?.app_goal === "track_pregnancy" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Track Pregnancy</p>
+            <p className="text-[10px] text-[#b0a0b5] mt-1">Follow baby's growth</p>
+          </button>
+        </div>
+      </section>
+
       {/* CARD 3: Data Privacy & Export */}
       <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
         <h2 className="text-xl font-bold text-[#3f2b4d] mb-6 flex items-center gap-2">
@@ -502,6 +600,59 @@ export default function AccountPage() {
         </div>
       </section>
 
+      {/* Pregnancy Setup Modal */}
+      {showPregnancyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3f2b4d]/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <div className="relative p-8 text-center">
+              <button 
+                onClick={() => setShowPregnancyModal(false)}
+                className="absolute top-6 right-6 p-2 text-[#7d6b86] hover:bg-[#faf6f8] rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="w-20 h-20 bg-[#f7f1ff] text-[#a78bfa] rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3">
+                <Baby size={40} />
+              </div>
+
+              <h3 className="text-2xl font-extrabold text-[#3f2b4d] mb-2">Pregnancy Tracking</h3>
+              <p className="text-[#7d6b86] mb-8">Tell us your due date to customize your dashboard with baby's growth and health tips.</p>
+
+              <div className="space-y-6 text-left">
+                <div>
+                  <label className="block text-sm font-bold text-[#3f2b4d] mb-2 ml-1">Expected Due Date</label>
+                  <input 
+                    type="date" 
+                    value={pregnancyDueDate}
+                    onChange={(e) => setPregnancyDueDate(e.target.value)}
+                    className="w-full bg-[#faf6f8] border-2 border-transparent focus:border-[#a78bfa]/20 focus:bg-white rounded-2xl p-4 text-[#3f2b4d] outline-none transition-all"
+                  />
+                  <p className="text-[10px] text-[#b0a0b5] mt-2 ml-1 flex items-start gap-1">
+                    <Info size={12} className="shrink-0 mt-0.5" />
+                    If you don't know your due date, it's typically 40 weeks from the first day of your last period.
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => handleUpdateGoal("track_pregnancy", pregnancyDueDate)}
+                  disabled={!pregnancyDueDate || updatingGoal}
+                  className="w-full bg-gradient-to-r from-[#a78bfa] to-[#ff7eb6] hover:opacity-90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {updatingGoal ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Start Pregnancy Mode</span>
+                      <ChevronRight size={20} />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

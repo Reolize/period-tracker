@@ -19,6 +19,16 @@ class UserSetupUpsert(BaseModel):
     date_of_birth: Optional[date] = None
     height_cm: Optional[int] = None
     weight_kg: Optional[int] = None
+    
+    # Pregnancy Tracking Data
+    pregnancy_due_date: Optional[date] = None
+    pregnancy_weeks_override: Optional[int] = Field(default=None, ge=1, le=42)
+
+
+class UserGoalUpdate(BaseModel):
+    app_goal: AppGoal
+    pregnancy_due_date: Optional[date] = None
+    pregnancy_weeks_override: Optional[int] = Field(default=None, ge=1, le=42)
 
 
 class UserSetupResponse(BaseModel):
@@ -33,6 +43,10 @@ class UserSetupResponse(BaseModel):
     date_of_birth: Optional[date] = None
     height_cm: Optional[int] = None
     weight_kg: Optional[int] = None
+    
+    # Pregnancy Tracking Data
+    pregnancy_due_date: Optional[date] = None
+    pregnancy_weeks_override: Optional[int] = None
 
     class Config:
         from_attributes = True

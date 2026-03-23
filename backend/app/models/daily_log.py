@@ -72,6 +72,10 @@ class DailyLog(Base):
     # Basal Body Temperature in °C, precision 2 decimals (e.g. 36.55)
     bbt_celsius = Column(Numeric(4, 2), nullable=True)
 
+    # Pregnancy Tracking Data
+    weight_kg = Column(Numeric(5, 2), nullable=True)
+    pregnancy_week = Column(Integer, nullable=True)
+
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

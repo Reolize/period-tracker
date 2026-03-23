@@ -22,6 +22,7 @@ import type {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
+  appGoal?: string
 }
 
 const BLEEDING: { value: BleedingFlow, label: string, hint: string }[] = [
@@ -56,6 +57,16 @@ const SYMPTOMS_BODY: { code: SymptomCode, label: string }[] = [
   { code: "nausea", label: "Nausea" },
   { code: "appetite_changes", label: "Appetite changes" },
   { code: "sleep_issues", label: "Sleep issues" },
+]
+
+const SYMPTOMS_PREGNANCY: { code: SymptomCode, label: string }[] = [
+  { code: "morning_sickness", label: "Morning sickness" },
+  { code: "vomiting", label: "Vomiting" },
+  { code: "heartburn", label: "Heartburn" },
+  { code: "fetal_movement", label: "Fetal movement" },
+  { code: "contractions", label: "Contractions" },
+  { code: "spotting_preg", label: "Spotting (Pregnancy)" },
+  { code: "swelling", label: "Swelling" },
 ]
 
 const MOODS: { code: MoodCode, label: string }[] = [
@@ -114,6 +125,7 @@ export default function DailyLogModal({
   open,
   onOpenChange,
   hideTrigger = false,
+  appGoal,
 }: Props) {
   const initialDate = useMemo(() => defaultDate ?? todayISO(), [defaultDate])
 
@@ -134,6 +146,8 @@ export default function DailyLogModal({
   const [painSex, setPainSex] = useState(false)
 
   const [bbt, setBbt] = useState<string>("")
+  const [weight, setWeight] = useState<string>("")
+  const [pregWeek, setPregWeek] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
 
   const isControlled = open !== undefined
@@ -153,6 +167,8 @@ export default function DailyLogModal({
     setSymptoms(initialData?.physical_symptoms ?? [])
     setMoods(initialData?.moods ?? [])
     setBbt(initialData?.bbt_celsius == null ? "" : String(initialData.bbt_celsius))
+    setWeight(initialData?.weight_kg == null ? "" : String(initialData.weight_kg))
+    setPregWeek(initialData?.pregnancy_week == null ? "" : String(initialData.pregnancy_week))
     setNotes(initialData?.notes ?? "")
 
     const sex = initialData?.sex ?? {}
@@ -173,6 +189,8 @@ export default function DailyLogModal({
     setOrgasm(false)
     setPainSex(false)
     setBbt("")
+    setWeight("")
+    setPregWeek("")
     setNotes("")
   }
 
@@ -191,6 +209,8 @@ export default function DailyLogModal({
         pain: hadSex ? painSex : undefined,
       },
       bbt_celsius: bbt.trim() ? Number(bbt) : null,
+      weight_kg: weight.trim() ? Number(weight) : null,
+      pregnancy_week: pregWeek.trim() ? Number(pregWeek) : null,
       notes: notes.trim() ? notes.trim() : null,
     }
 
@@ -269,31 +289,55 @@ export default function DailyLogModal({
               </section>
 
               {/* Bleeding */}
-              <section className="space-y-3">
-                <div>
-                  <div className="font-semibold">Bleeding</div>
-                  <div className="text-sm text-gray-500">How strong was your flow?</div>
-                </div>
-                <div className="grid sm:grid-cols-5 gap-2">
-                  {BLEEDING.map((b) => {
-                    const active = bleeding === b.value
-                    return (
-                      <button
-                        key={b.value}
-                        type="button"
-                        onClick={() => setBleeding(b.value)}
-                        className={[
-                          "rounded-xl border px-3 py-2 text-left transition",
-                          active ? "bg-pink-50 border-pink-200" : "bg-white border-[var(--border)] hover:bg-pink-50/60",
-                        ].join(" ")}
-                      >
-                        <div className="font-medium text-sm">{b.label}</div>
-                        <div className="text-xs text-gray-500">{b.hint}</div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </section>
+              {appGoal !== "track_pregnancy" && (
+                <section className="space-y-3">
+                  <div>
+                    <div className="font-semibold">Bleeding</div>
+                    <div className="text-sm text-gray-500">How strong was your flow?</div>
+                  </div>
+                  <div className="grid sm:grid-cols-5 gap-2">
+                    {BLEEDING.map((b) => {
+                      const active = bleeding === b.value
+                      return (
+                        <button
+                          key={b.value}
+                          type="button"
+                          onClick={() => setBleeding(b.value)}
+                          className={[
+                            "rounded-xl border px-3 py-2 text-left transition",
+                            active ? "bg-pink-50 border-pink-200" : "bg-white border-[var(--border)] hover:bg-pink-50/60",
+                          ].join(" ")}
+                        >
+                          <div className="font-medium text-sm">{b.label}</div>
+                          <div className="text-xs text-gray-500">{b.hint}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Pregnancy Specific Symptoms */}
+              {appGoal === "track_pregnancy" && (
+                <section className="space-y-3">
+                  <div>
+                    <div className="font-semibold text-purple-700 flex items-center gap-2">
+                      <span className="text-xl">🤰</span> Pregnancy Symptoms
+                    </div>
+                    <div className="text-sm text-gray-500">Track common symptoms for your stage</div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {SYMPTOMS_PREGNANCY.map((s) => (
+                      <Chip
+                        key={s.code}
+                        active={symptoms.includes(s.code)}
+                        label={s.label}
+                        onClick={() => setSymptoms((prev) => toggleInList(prev, s.code))}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Pain + Body symptoms */}
               <section className="space-y-3">
@@ -345,21 +389,38 @@ export default function DailyLogModal({
                 </div>
               </section>
 
-              {/* Discharge + Sex + BBT */}
+              {/* Discharge + Sex + BBT + Weight */}
               <section className="grid md:grid-cols-2 gap-4">
+                {appGoal !== "track_pregnancy" && (
+                  <div className="space-y-2">
+                    <div className="font-semibold">Discharge</div>
+                    <select
+                      value={discharge}
+                      onChange={(e) => setDischarge(e.target.value as DischargeType)}
+                      className="input"
+                    >
+                      {DISCHARGE.map((d) => (
+                        <option key={d.value} value={d.value}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <div className="font-semibold">Discharge</div>
-                  <select
-                    value={discharge}
-                    onChange={(e) => setDischarge(e.target.value as DischargeType)}
+                  <div className="font-semibold">Weight (kg)</div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    min={20}
+                    max={300}
+                    placeholder="e.g. 65.5"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
                     className="input"
-                  >
-                    {DISCHARGE.map((d) => (
-                      <option key={d.value} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div className="space-y-2">
@@ -376,6 +437,21 @@ export default function DailyLogModal({
                     className="input"
                   />
                 </div>
+
+                {appGoal === "track_pregnancy" && (
+                  <div className="space-y-2">
+                    <div className="font-semibold">Pregnancy Week</div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={42}
+                      placeholder="e.g. 14"
+                      value={pregWeek}
+                      onChange={(e) => setPregWeek(e.target.value)}
+                      className="input"
+                    />
+                  </div>
+                )}
               </section>
 
               <section className="space-y-3">

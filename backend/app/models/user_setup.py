@@ -31,6 +31,7 @@ class AppGoal(str, Enum):
     predict_period = "predict_period"
     manage_symptoms = "manage_symptoms"
     conceive = "conceive"
+    track_pregnancy = "track_pregnancy"
     avoid_pregnancy = "avoid_pregnancy"
     general_health = "general_health"
 
@@ -57,6 +58,10 @@ class UserSetup(Base):
     last_period_start_date = Column(Date, nullable=True)
     avg_period_length_days = Column(Integer, nullable=True)  # e.g. 3-10
     avg_cycle_length_days = Column(Integer, nullable=True)  # e.g. 21-45
+
+    # Pregnancy Tracking Data
+    pregnancy_due_date = Column(Date, nullable=True)
+    pregnancy_weeks_override = Column(Integer, nullable=True)
 
     contraception_method = Column(
         SAEnum(ContraceptionMethod, name="contraception_method", native_enum=False),
