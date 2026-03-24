@@ -69,15 +69,18 @@ export default function OnboardingPage() {
       formData.append("username", email)
       formData.append("password", password)
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+      const loginRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Bypass-Tunnel-Reminder": "true"
+        },
         body: formData.toString()
       })
 
-      if (!res.ok) throw new Error("Login failed after registration")
+      if (!loginRes.ok) throw new Error("Login failed after registration")
       
-      const data = await res.json()
+      const data = await loginRes.json()
       localStorage.setItem("token", data.access_token)
       
       // Move to next step
@@ -267,7 +270,7 @@ export default function OnboardingPage() {
                   <label className="block text-sm font-semibold text-[#3f2b4d] mb-2 ml-1">When did your last period start?</label>
                   <DatePicker
                     selected={lastPeriodStart}
-                    onChange={(date) => setLastPeriodStart(date)}
+                    onChange={(date: Date | null) => setLastPeriodStart(date)}
                     className="w-full px-4 py-3.5 rounded-2xl bg-[#faf6f8] border-transparent focus:bg-white focus:border-[#ff7eb6] focus:ring-4 focus:ring-[#ff7eb6]/10 outline-none transition-all text-[#3f2b4d]"
                     placeholderText="Select date (optional)"
                     maxDate={new Date()}
@@ -340,7 +343,7 @@ export default function OnboardingPage() {
                   <label className="block text-sm font-semibold text-[#3f2b4d] mb-2 ml-1">Estimated Due Date</label>
                   <DatePicker
                     selected={dueDate}
-                    onChange={(date) => setDueDate(date)}
+                    onChange={(date: Date | null) => setDueDate(date)}
                     className="w-full px-4 py-3.5 rounded-2xl bg-[#faf6f8] border-transparent focus:bg-white focus:border-[#ff7eb6] focus:ring-4 focus:ring-[#ff7eb6]/10 outline-none transition-all text-[#3f2b4d]"
                     placeholderText="Select due date"
                     minDate={new Date()}
@@ -355,7 +358,7 @@ export default function OnboardingPage() {
                   <label className="block text-sm font-semibold text-[#3f2b4d] mb-2 ml-1">Calculate from last period</label>
                   <DatePicker
                     selected={lastPeriodStart}
-                    onChange={(date) => {
+                    onChange={(date: Date | null) => {
                       setLastPeriodStart(date)
                       if (date) {
                         // Rough estimate: LMP + 280 days

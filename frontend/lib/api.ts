@@ -11,6 +11,7 @@ export async function apiFetch(
       ...options,
       headers: {
         "Content-Type": "application/json",
+        "Bypass-Tunnel-Reminder": "true", // Add this to bypass localtunnel warning page
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },

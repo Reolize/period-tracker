@@ -17,10 +17,10 @@ class PredictionService:
             .all()
         )
 
-        if len(cycles) < 4:
+        if len(cycles) < 1: # Reduced to 1 to allow ML fallback to work even with just 1 logged cycle
             return None
 
-        result = PredictionEngine.predict(cycles)
+        result = PredictionEngine.predict(db, user_id, cycles)
 
         if not result:
             return None

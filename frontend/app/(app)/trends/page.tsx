@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
 import { Download, Sparkles, Activity, Calendar, BrainCircuit, ArrowRight } from "lucide-react"
 import { apiFetch } from "@/lib/api"
+import AIPredictionReport from "@/app/components/AIPredictionReport"
 
 // Helper function to format month (e.g. "2023-10-01" -> "Oct")
 function formatMonth(dateStr: string) {
@@ -128,36 +129,11 @@ export default function TrendsPage() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: AI & Export */}
+        {/* RIGHT COLUMN: Export */}
         <div className="space-y-6">
           
-          {/* Card 3: AI Prediction */}
-          <div className="bg-gradient-to-br from-[#fff0f6] to-[#f7f1ff] rounded-3xl p-6 border border-[#f0e8ee] shadow-sm flex flex-col">
-            <h3 className="text-sm font-bold text-[#b06a94] uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Sparkles size={16} />
-              AI Analysis
-            </h3>
-            
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-[#3f2b4d] font-semibold mb-1">Confidence Score</div>
-                <div className="flex items-end gap-2">
-                  <span className="text-3xl font-bold text-[#ff7eb6]">{prediction?.confidence_score || 0}%</span>
-                  <span className="text-sm text-[#7d6b86] mb-1 pb-1">High</span>
-                </div>
-              </div>
-              <div className="text-[#ff7eb6] opacity-30 shrink-0">
-                <BrainCircuit size={48} strokeWidth={1.5} />
-              </div>
-            </div>
-            
-            <p className="text-sm text-[#7d6b86] leading-relaxed">
-              Based on your last {cycles.length} cycles, your predictions are highly accurate. Keep logging to maintain this score.
-            </p>
-          </div>
-
           {/* Card 4: Export Data */}
-          <div className="bg-white rounded-3xl p-6 border border-[#f0e8ee] shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+          <div className="bg-white rounded-3xl p-6 border border-[#f0e8ee] shadow-sm flex flex-col items-center justify-center text-center space-y-4 h-full">
             <div className="w-12 h-12 bg-[#faf6f8] rounded-full flex items-center justify-center text-[#3f2b4d]">
               <Download size={24} />
             </div>
@@ -170,6 +146,14 @@ export default function TrendsPage() {
             </button>
           </div>
 
+        </div>
+
+        {/* MIDDLE FULL WIDTH: AI Prediction Report */}
+        <div className="lg:col-span-3">
+          <AIPredictionReport 
+            confidenceScore={prediction?.confidence_score || 85} 
+            cycleLength={avgCycleLength} 
+          />
         </div>
 
         {/* BOTTOM FULL WIDTH: Top Symptoms */}

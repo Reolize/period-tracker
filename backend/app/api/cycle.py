@@ -24,7 +24,7 @@ def predict_cycle(
         Cycle.user_id == current_user.id
     ).order_by(Cycle.start_date.asc()).all()
 
-    result = PredictionEngine.predict(cycles)
+    result = PredictionEngine.predict(db, current_user.id, cycles)
 
     if not result:
         raise HTTPException(

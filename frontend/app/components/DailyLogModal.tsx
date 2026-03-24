@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { X } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import type {
   BleedingFlow,
@@ -23,6 +24,7 @@ import type {
   onOpenChange?: (open: boolean) => void
   hideTrigger?: boolean
   appGoal?: string
+  onClose?: () => void
 }
 
 const BLEEDING: { value: BleedingFlow, label: string, hint: string }[] = [
@@ -126,6 +128,7 @@ export default function DailyLogModal({
   onOpenChange,
   hideTrigger = false,
   appGoal,
+  onClose,
 }: Props) {
   const initialDate = useMemo(() => defaultDate ?? todayISO(), [defaultDate])
 
@@ -156,6 +159,9 @@ export default function DailyLogModal({
   function setModalOpen(next: boolean) {
     if (!isControlled) setInternalOpen(next)
     onOpenChange?.(next)
+    if (!next && onClose) {
+      onClose()
+    }
   }
 
   useEffect(() => {
@@ -258,33 +264,35 @@ export default function DailyLogModal({
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl border border-[var(--border)] shadow-lg">
-            <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="relative bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header - Fixed */}
+            <div className="p-6 border-b border-[#f0e8ee] flex items-center justify-between shrink-0 bg-white z-10">
               <div>
-                <div className="text-lg font-semibold">Daily log</div>
-                <div className="text-sm text-gray-500">Track bleeding, pain, mood, and more</div>
+                <div className="text-2xl font-bold text-[#3f2b4d]">Daily log</div>
+                <div className="text-sm text-[#7d6b86] mt-1">Track bleeding, pain, mood, and more</div>
               </div>
               <button
-                className="btn-secondary"
+                className="p-2 text-[#7d6b86] hover:text-[#3f2b4d] hover:bg-[#faf6f8] rounded-full transition-colors"
                 onClick={() => {
                   setModalOpen(false)
                   setError(null)
                 }}
               >
-                Close
+                <X size={24} />
               </button>
             </div>
 
-            <div className="p-5 space-y-6 max-h-[75vh] overflow-auto">
+            {/* Scrollable Content */}
+            <div className="p-6 space-y-8 overflow-y-auto flex-1">
               {/* Date */}
-              <section className="space-y-2">
-                <div className="font-semibold">Date</div>
+              <section className="space-y-3">
+                <div className="font-semibold text-[#3f2b4d]">Date</div>
                 <input
                   type="date"
                   value={logDate}
                   onChange={(e) => setLogDate(e.target.value)}
-                  className="input"
+                  className="w-full bg-[#faf6f8] border-2 border-transparent focus:border-[#ff7eb6]/20 focus:bg-white rounded-2xl p-4 text-[#3f2b4d] outline-none transition-all"
                 />
               </section>
 
@@ -523,46 +531,55 @@ export default function DailyLogModal({
                 )}
               </section>
 
-              <section className="space-y-2">
-                <div className="font-semibold">Notes</div>
+              {/* Notes */}
+              <section className="space-y-3">
+                <div className="font-semibold text-[#3f2b4d]">Notes</div>
                 <textarea
+                  className="w-full bg-[#faf6f8] border-2 border-transparent focus:border-[#ff7eb6]/20 focus:bg-white rounded-2xl p-4 text-[#3f2b4d] outline-none transition-all resize-y min-h-[100px]"
+                  placeholder="How was your day?"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="input"
-                  placeholder="Anything else?"
-                  rows={3}
                 />
               </section>
 
               {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 animate-shake">
                   {error}
                 </div>
               )}
             </div>
 
-            <div className="p-5 border-t border-[var(--border)] flex items-center gap-3">
+            {/* Footer - Fixed */}
+            <div className="p-6 border-t border-[#f0e8ee] flex items-center justify-end gap-3 bg-white shrink-0 z-10">
               {initialData?.log_date && (
                 <button
                   type="button"
-                  disabled={saving}
-                  className="btn-secondary text-red-600 hover:bg-red-50 hover:border-red-200"
+                  className="px-6 py-3 font-semibold text-red-500 hover:bg-red-50 rounded-xl transition-colors mr-auto"
                   onClick={deleteLog}
+                  disabled={saving}
                 >
                   Delete
                 </button>
               )}
-              <button disabled={saving} className="btn-primary flex-1" onClick={save}>
-                {saving ? "Saving..." : "Save daily log"}
+              <button
+                type="button"
+                className="px-6 py-3 font-semibold text-[#7d6b86] hover:bg-[#faf6f8] rounded-xl transition-colors"
+                onClick={() => setModalOpen(false)}
+                disabled={saving}
+              >
+                Cancel
               </button>
               <button
                 type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  reset()
-                }}
+                className="bg-[#ff7eb6] hover:bg-[#e05896] text-white px-8 py-3 rounded-xl font-bold shadow-sm shadow-[#ff7eb6]/30 transition-all disabled:opacity-50 flex items-center justify-center min-w-[120px]"
+                onClick={save}
+                disabled={saving}
               >
-                Reset
+                {saving ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  "Save log"
+                )}
               </button>
             </div>
           </div>

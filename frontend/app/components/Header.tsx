@@ -2,10 +2,14 @@
 
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Plus, User, LogOut, ChevronDown } from "lucide-react"
+import { Plus, User, LogOut, ChevronDown, Menu } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
@@ -33,10 +37,20 @@ export default function Header() {
   return (
     <header className="h-16 bg-white/80 backdrop-blur-md border-b border-[#f0e8ee] sticky top-0 z-30 flex items-center justify-between px-6 lg:px-8">
       
-      {/* Left side: Greeting / Date */}
-      <div className="flex flex-col">
-        <span className="text-xs font-semibold text-[#b06a94] uppercase tracking-wider">Today</span>
-        <span className="text-[15px] font-bold text-[#3f2b4d]">{todayStr}</span>
+      {/* Left side: Hamburger Menu (mobile) + Greeting / Date */}
+      <div className="flex items-center gap-4">
+        {/* Mobile Hamburger Menu Button */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden p-2 rounded-lg hover:bg-[#faf6f8] text-[#7d6b86] transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={24} />
+        </button>
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-[#b06a94] uppercase tracking-wider">Today</span>
+          <span className="text-[15px] font-bold text-[#3f2b4d]">{todayStr}</span>
+        </div>
       </div>
 
       {/* Right side: Actions */}

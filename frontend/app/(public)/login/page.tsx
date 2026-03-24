@@ -26,7 +26,8 @@ export default function LoginPage() {
         {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Bypass-Tunnel-Reminder": "true"
           },
           body: formData.toString()
         }

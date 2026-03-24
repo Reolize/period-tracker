@@ -21,7 +21,14 @@ docker exec -it period_postgres psql -U postgres -d period_tracker
 
 
 git add .
-git commit -m "UXUI Update"
+git commit -m "Prediction Engine Update"
 git push origin main
+
+
+ngrok tunnel for frontend
+ngrok http 3000
+
+local tunnel for backend
+npx localtunnel --port 9000
 
 

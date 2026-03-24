@@ -1,107 +1,76 @@
-import csv
-import json
-from dataclasses import dataclass
-from pathlib import Path
-from statistics import mean, pstdev
-from typing import Optional
+import os
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.metrics import mean_absolute_error
+from features import prepare_features
 
+def train_global_model():
+    print("Starting ML Model Training with Fused Data...")
+    
+    # 1. Feature Engineering (Loads all 3 datasets internally)
+    X, Y_cycle, Y_period, label_encoders = prepare_features()
+    
+    print(f"Total rows after data fusion: {len(X)}")
 
-ROOT = Path(__file__).resolve().parents[2]
-PROCESSED_CYCLES = ROOT / "ml" / "data" / "processed" / "cycles.csv"
-OUT_DIR = ROOT / "ml" / "saved_models" / "global"
+    # 2. Since Period Length has NaNs, we need to drop them ONLY for the Period Model training
+    # For Cycle Model, we drop rows where Cycle Length is NaN
+    
+    # --- Prepare Data for Cycle Model ---
+    valid_cycle_mask = Y_cycle.notna()
+    X_cycle = X[valid_cycle_mask]
+    Y_cycle_clean = Y_cycle[valid_cycle_mask]
+    
+    # --- Prepare Data for Period Model ---
+    valid_period_mask = Y_period.notna()
+    X_period = X[valid_period_mask]
+    Y_period_clean = Y_period[valid_period_mask]
 
+    print(f"Rows used for Cycle Length Model: {len(X_cycle)}")
+    print(f"Rows used for Period Length Model: {len(X_period)}")
 
-def _safe_int(v: str) -> Optional[int]:
-    if v is None:
-        return None
-    v = str(v).strip()
-    if v == "":
-        return None
-    try:
-        return int(float(v))
-    except ValueError:
-        return None
-
-
-@dataclass(frozen=True)
-class Priors:
-    cycle_length_mean: float
-    cycle_length_std: float
-    period_length_mean: float
-    period_length_std: float
-    n_cycles: int
-    n_periods: int
-
-
-def _compute_priors() -> Priors:
-    if not PROCESSED_CYCLES.exists():
-        raise SystemExit(
-            f"Missing {PROCESSED_CYCLES}. Run: python -m ml.data_prep.build_canonical_cycles"
-        )
-
-    cycle_lengths: list[int] = []
-    period_lengths: list[int] = []
-
-    with PROCESSED_CYCLES.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            cl = _safe_int(r.get("cycle_length_days"))
-            pl = _safe_int(r.get("period_length_days"))
-            if cl is not None and 10 <= cl <= 90:
-                cycle_lengths.append(cl)
-            if pl is not None and 1 <= pl <= 20:
-                period_lengths.append(pl)
-
-    if len(cycle_lengths) < 10:
-        raise SystemExit("Not enough cycle_length data to build priors.")
-
-    # population std (pstdev) gives stable results for small samples
-    cl_mean = float(mean(cycle_lengths))
-    cl_std = float(pstdev(cycle_lengths)) if len(cycle_lengths) > 1 else 0.0
-
-    if period_lengths:
-        pl_mean = float(mean(period_lengths))
-        pl_std = float(pstdev(period_lengths)) if len(period_lengths) > 1 else 0.0
-    else:
-        # fallback if a dataset doesn't include period length
-        pl_mean, pl_std = 5.0, 1.5
-
-    return Priors(
-        cycle_length_mean=cl_mean,
-        cycle_length_std=cl_std,
-        period_length_mean=pl_mean,
-        period_length_std=pl_std,
-        n_cycles=len(cycle_lengths),
-        n_periods=len(period_lengths),
+    # 3. Train/Test Split (80/20)
+    Xc_train, Xc_test, yc_train, yc_test = train_test_split(
+        X_cycle, Y_cycle_clean, test_size=0.2, random_state=42
+    )
+    
+    Xp_train, Xp_test, yp_train, yp_test = train_test_split(
+        X_period, Y_period_clean, test_size=0.2, random_state=42
     )
 
+    # 4. Initialize Models (HistGradientBoosting supports NaNs natively)
+    cycle_model = HistGradientBoostingRegressor(random_state=42, max_iter=150, max_depth=10)
+    period_model = HistGradientBoostingRegressor(random_state=42, max_iter=150, max_depth=10)
 
-def main() -> None:
-    priors = _compute_priors()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUT_DIR / "priors.json"
-    out_path.write_text(
-        json.dumps(
-            {
-                "cycle_length": {
-                    "mean": priors.cycle_length_mean,
-                    "std": priors.cycle_length_std,
-                    "n": priors.n_cycles,
-                },
-                "period_length": {
-                    "mean": priors.period_length_mean,
-                    "std": priors.period_length_std,
-                    "n": priors.n_periods,
-                },
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    print(f"Wrote global priors to {out_path}")
+    # 5. Train Models
+    print("\nTraining Cycle Length Model...")
+    cycle_model.fit(Xc_train, yc_train)
+    
+    print("Training Period Length Model...")
+    period_model.fit(Xp_train, yp_train)
 
+    # 6. Evaluation (MAE)
+    cycle_pred = cycle_model.predict(Xc_test)
+    period_pred = period_model.predict(Xp_test)
+    
+    mae_cycle = mean_absolute_error(yc_test, cycle_pred)
+    mae_period = mean_absolute_error(yp_test, period_pred)
+    
+    print("\n--- Model Evaluation Results ---")
+    print(f"Cycle Length MAE:  ±{mae_cycle:.2f} days")
+    print(f"Period Length MAE: ±{mae_period:.2f} days")
+    print("--------------------------------")
+
+    # 7. Save Models and Encoders
+    save_dir = os.path.join(os.path.dirname(__file__), "..", "saved_models", "global")
+    os.makedirs(save_dir, exist_ok=True)
+    
+    joblib.dump(cycle_model, os.path.join(save_dir, "cycle_model.pkl"))
+    joblib.dump(period_model, os.path.join(save_dir, "period_model.pkl"))
+    joblib.dump(label_encoders, os.path.join(save_dir, "label_encoders.pkl"))
+    
+    print(f"\nModels successfully saved to {save_dir}")
 
 if __name__ == "__main__":
-    main()
+    train_global_model()
 

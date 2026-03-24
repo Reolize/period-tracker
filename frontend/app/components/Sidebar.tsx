@@ -2,28 +2,46 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, LineChart, BookOpen, Settings, Droplet, Bell, ShieldCheck } from "lucide-react"
+import { LayoutDashboard, LineChart, BookOpen, Settings, Droplet, Bell, ShieldCheck, X } from "lucide-react"
 
-export default function Sidebar() {
+interface SidebarProps {
+  onMobileClose?: () => void
+}
+
+export default function Sidebar({ onMobileClose }: SidebarProps) {
   const pathname = usePathname()
 
   const navItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Insights", path: "/trends", icon: LineChart },
     { name: "Health Library", path: "/health-library", icon: BookOpen },
-    { name: "Notifications", path: "#", icon: Bell },
+    { name: "Notifications", path: "/notifications", icon: Bell },
     { name: "Data Privacy", path: "/data-privacy", icon: ShieldCheck },
     { name: "Settings", path: "/account", icon: Settings },
   ]
 
+  const handleLinkClick = () => {
+    if (onMobileClose) {
+      onMobileClose()
+    }
+  }
+
   return (
     <aside className="w-64 bg-white border-r border-[#f0e8ee] flex flex-col h-full shrink-0">
-      {/* Logo Section */}
-      <div className="h-16 flex items-center px-6 border-b border-[#f0e8ee]">
+      {/* Logo Section with Mobile Close Button */}
+      <div className="h-16 flex items-center px-6 border-b border-[#f0e8ee] justify-between">
         <div className="flex items-center gap-2 text-[#ff7eb6] font-bold text-xl tracking-tight">
           <Droplet fill="currentColor" size={24} />
           <span>Period Tracker</span>
         </div>
+        {/* Mobile Close Button */}
+        <button 
+          onClick={onMobileClose}
+          className="md:hidden p-2 rounded-lg hover:bg-[#faf6f8] text-[#7d6b86]"
+          aria-label="Close menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -36,6 +54,7 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.path}
+              onClick={handleLinkClick}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium ${
                 isActive
                   ? "bg-[#fff0f6] text-[#ff7eb6]"
