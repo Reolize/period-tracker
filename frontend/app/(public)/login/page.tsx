@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Droplet, Lock, Mail, ArrowRight } from "lucide-react"
+import { Droplet, Lock, Mail, ArrowRight, ArrowLeft } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -41,7 +42,19 @@ export default function LoginPage() {
 
       const data = await res.json()
       localStorage.setItem("token", data.access_token)
-      router.push("/dashboard")
+      
+      // Check if user is admin and redirect accordingly
+      try {
+        const userData = await apiFetch("/users/me")
+        if (userData.is_admin) {
+          router.push("/admin")
+        } else {
+          router.push("/dashboard")
+        }
+      } catch (err) {
+        // If failed to check admin status, default to dashboard
+        router.push("/dashboard")
+      }
     } catch (err) {
       setError("An error occurred. Please try again.")
       setLoading(false)
@@ -49,16 +62,25 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#faf6f8] p-4 selection:bg-[#ff7eb6] selection:text-white">
+    <div className="min-h-screen flex items-center justify-center bg-[#faf6f8] p-4 selection:bg-[#ff7eb6] selection:text-white relative">
+      {/* Back to Home Button */}
+      <Link
+        href="/"
+        className="absolute top-4 left-4 flex items-center gap-1 text-sm font-medium text-[#7d6b86] hover:text-[#ff7eb6] transition-all group"
+      >
+        <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+        <span>Back to Home</span>
+      </Link>
+
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
-        <div className="flex flex-col items-center mb-8 animate-fadeSlideIn">
-          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-[#f2d6e4] mb-4 rotate-3">
+        <Link href="/" className="flex flex-col items-center mb-8 animate-fadeSlideIn group">
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-[#f2d6e4] mb-4 rotate-3 group-hover:shadow-md group-hover:border-[#ff7eb6]/30 transition-all">
             <Droplet fill="#ff7eb6" className="text-[#ff7eb6]" size={32} />
           </div>
           <h1 className="text-3xl font-extrabold text-[#3f2b4d] tracking-tight">Welcome Back</h1>
           <p className="text-[#7d6b86] mt-2 text-center">Log in to continue your health journey.</p>
-        </div>
+        </Link>
 
         {/* Login Card */}
         <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-sm border border-[#f0e8ee] animate-fadeSlideIn" style={{ animationDelay: '0.1s' }}>

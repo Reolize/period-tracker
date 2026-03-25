@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { Menu } from "lucide-react"
 import Header from "../components/Header"
 import Sidebar from "../components/Sidebar"
@@ -11,6 +12,15 @@ export default function AppLayout({
   children: React.ReactNode
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const pathname = usePathname()
+  
+  // Check if this is an admin route - admin pages have their own layout
+  const isAdminRoute = pathname?.startsWith("/admin")
+
+  // For admin routes, render children directly without the default sidebar/header
+  if (isAdminRoute) {
+    return <>{children}</>
+  }
 
   return (
     <div className="flex h-screen bg-[#fff7fb] overflow-hidden">

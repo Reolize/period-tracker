@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowRight, ArrowLeft, Check, Target, Heart, Calendar as CalendarIcon, ShieldCheck, Sparkles, Baby } from "lucide-react"
+import { ArrowRight, ArrowLeft, Check, Target, Heart, Calendar as CalendarIcon, ShieldCheck, Sparkles, Baby, Droplet } from "lucide-react"
 
 // Import styles and components for dates
 import DatePicker from "react-datepicker"
@@ -127,7 +127,17 @@ export default function OnboardingPage() {
   const progressPercentage = ((step - 1) / totalSteps) * 100
 
   return (
-    <div className="min-h-screen bg-[#faf6f8] flex flex-col items-center justify-center p-4 selection:bg-[#ff7eb6] selection:text-white">
+    <div className="min-h-screen bg-[#faf6f8] flex flex-col items-center justify-center p-4 selection:bg-[#ff7eb6] selection:text-white relative">
+      {/* Back to Home Button - Only on Step 1 */}
+      {step === 1 && (
+        <Link
+          href="/"
+          className="absolute top-4 left-4 flex items-center gap-1 text-sm font-medium text-[#7d6b86] hover:text-[#ff7eb6] transition-all group"
+        >
+          <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span>Back to Home</span>
+        </Link>
+      )}
       
       {/* Container */}
       <div className="w-full max-w-md bg-white rounded-[2rem] shadow-xl shadow-[#ff7eb6]/5 border border-[#f0e8ee] overflow-hidden relative">
@@ -173,9 +183,11 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div className="animate-fadeSlideIn">
               <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-[#fff0f6] text-[#ff7eb6] rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
-                  <ShieldCheck size={32} />
-                </div>
+                <Link href="/" className="inline-block group">
+                  <div className="w-16 h-16 bg-[#fff0f6] text-[#ff7eb6] rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3 group-hover:shadow-md group-hover:scale-105 transition-all">
+                    <ShieldCheck size={32} />
+                  </div>
+                </Link>
                 <h1 className="text-3xl font-extrabold text-[#3f2b4d] mb-3">Let's secure your data</h1>
                 <p className="text-[#7d6b86]">Create an account to keep your health data private and synced.</p>
               </div>

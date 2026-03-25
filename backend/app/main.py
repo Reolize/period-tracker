@@ -8,6 +8,7 @@ from app.models import user_setup  # noqa: F401
 from app.models import daily_log  # noqa: F401
 
 from app.models import notification  # noqa: F401
+from app.models import system_setting  # noqa: F401
 
 from app.api import test_db
 from app.api import cycle
@@ -16,6 +17,7 @@ from app.api import protected
 from app.api import prediction
 from app.api import user_setup as user_setup_api
 from app.api import daily_log as daily_log_api
+from app.api import admin as admin_api
 from app.api import notification as notification_api
 
 
@@ -42,4 +44,5 @@ app.include_router(protected.router)
 app.include_router(prediction.router)
 app.include_router(user_setup_api.router)
 app.include_router(daily_log_api.router)
+app.include_router(admin_api.router)
 app.include_router(notification_api.router)
