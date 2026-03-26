@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/api"
 import DailyLogModal from "@/app/components/DailyLogModal"
+import AIPredictionReport from "@/app/components/AIPredictionReport"
 import { ChevronDown, ChevronUp, Droplet, Frown, Thermometer, Smile, Pencil } from "lucide-react"
 
 import Calendar from "react-calendar"
@@ -535,6 +536,9 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
           <p className="text-sm text-gray-500">No daily logs yet. Tap Add daily log to start tracking.</p>
         )}
       </section>
+
+      {/* AI PREDICTION REPORT */}
+      <AIPredictionReport />
 
       {/* MASTER-DETAIL LAYOUT FOR CALENDAR & HISTORY */}
       <div className="grid lg:grid-cols-2 gap-8 items-start">

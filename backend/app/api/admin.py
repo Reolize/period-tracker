@@ -303,6 +303,22 @@ def initialize_default_settings(db: Session):
             "value": "0.25",
             "description": "Coefficient of variation > this means irregular cycle"
         },
+        # ========== AI Insights Configuration ==========
+        {
+            "key": "ai_regularity_strict_sd",
+            "value": "2.0",
+            "description": "SD threshold for Very Regular cycle."
+        },
+        {
+            "key": "ai_regularity_moderate_sd",
+            "value": "4.0",
+            "description": "SD threshold for Moderate Variation."
+        },
+        {
+            "key": "ai_symptom_base_prob",
+            "value": "30",
+            "description": "Default probability (%) for symptoms if no user data."
+        },
     ]
     
     created_count = 0

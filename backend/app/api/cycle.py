@@ -5,9 +5,10 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_db
 from app.api.auth_deps import get_current_user
 from app.models.cycle import Cycle
-from app.schemas.cycle_schema import PredictionResponse, HealthAlert as HealthAlertSchema
+from app.schemas.cycle_schema import PredictionResponse, HealthAlert as HealthAlertSchema, AIInsightsResponse
 from app.services.prediction_engine import PredictionEngine
 from app.services.health_utils import assess_cycle_health
+from app.services.ai_insights_service import AIInsightsService
 
 from app.schemas.cycle_schema import CycleCreate, CycleResponse
 from app.services.cycle_service import create_cycle
@@ -39,6 +40,42 @@ def predict_cycle(
     ] or None
 
     return result
+
+
+@router.get("/insights", response_model=AIInsightsResponse)
+def get_ai_insights(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Get personalized AI insights including:
+    - Symptom probability predictions
+    - Dynamic luteal phase calculation
+    - Smart recommendations
+    """
+    cycles = db.query(Cycle).filter(
+        Cycle.user_id == current_user.id
+    ).order_by(Cycle.start_date.asc()).all()
+
+    # Get prediction data to calculate cycle metrics
+    prediction_result = PredictionEngine.predict(db, current_user.id, cycles)
+
+    # Generate AI insights
+    insights = AIInsightsService.generate_insights(
+        db=db,
+        user_id=current_user.id,
+        cycles=cycles,
+        cycle_std_dev=prediction_result.get("cycle_std_dev") if prediction_result else None,
+        avg_cycle_length=prediction_result.get("cycle_length_prediction") if prediction_result else None,
+        confidence_score=prediction_result.get("confidence_score") if prediction_result else None
+    )
+
+    return AIInsightsResponse(
+        symptom_probabilities=insights["symptom_probabilities"],
+        luteal_phase=insights["luteal_phase"],
+        recommendation=insights["recommendation"],
+        cycle_regularity=insights["cycle_regularity"]
+    )
 
 
 @router.get("/export")

@@ -146,6 +146,51 @@ function EditSettingModal({
   )
 }
 
+// Toggle Switch Component
+function ToggleSwitch({ 
+  isOn, 
+  onToggle, 
+  isLoading = false 
+}: { 
+  isOn: boolean; 
+  onToggle: () => void; 
+  isLoading?: boolean 
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={isLoading}
+      className={`relative w-14 h-8 rounded-full transition-all duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#ff7eb6]/50 disabled:opacity-60 ${
+        isOn 
+          ? "bg-gradient-to-r from-[#ff7eb6] to-[#ff6b9d]" 
+          : "bg-slate-300"
+      }`}
+    >
+      <span
+        className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ease-in-out ${
+          isOn ? "translate-x-6" : "translate-x-0"
+        }`}
+      >
+        {isLoading && (
+          <span className="absolute inset-0 flex items-center justify-center">
+            <span className="w-3 h-3 border-2 border-slate-300 border-t-[#ff7eb6] rounded-full animate-spin" />
+          </span>
+        )}
+      </span>
+    </button>
+  )
+}
+
+// Helper to check if value is boolean string
+function isBooleanValue(value: string): boolean {
+  return value === "true" || value === "false"
+}
+
+// Helper to parse boolean value
+function parseBoolean(value: string): boolean {
+  return value === "true"
+}
+
 // Skeleton Component
 function SettingCardSkeleton() {
   return (
@@ -231,7 +276,32 @@ export default function AdminSettingsPage() {
     }
   }
 
-  // Handle close modal
+  // Handle toggle for boolean settings
+  const handleToggle = async (setting: SystemSetting) => {
+    const newValue = setting.value === "true" ? "false" : "true"
+    
+    try {
+      await apiFetch(`/admin/settings/${setting.key}`, {
+        method: "PUT",
+        body: JSON.stringify({ 
+          value: newValue, 
+          description: setting.description 
+        })
+      })
+
+      // Update local state
+      setSettings(prev => prev.map(s => 
+        s.key === setting.key 
+          ? { ...s, value: newValue, updated_at: new Date().toISOString() }
+          : s
+      ))
+
+      setToast({ message: `"${setting.key}" updated to ${newValue}`, type: "success" })
+    } catch (err: any) {
+      console.error("Failed to toggle setting:", err)
+      setToast({ message: err.message || "Failed to update setting", type: "error" })
+    }
+  }
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingSetting(null)
@@ -286,51 +356,77 @@ export default function AdminSettingsPage() {
           ) : (
             // Settings grid
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {settings.map((setting) => (
-                <div
-                  key={setting.key}
-                  className="bg-white rounded-xl p-6 border border-slate-200 hover:border-[#ff7eb6]/30 hover:shadow-lg transition-all group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <code className="text-sm font-mono bg-slate-100 px-2 py-1 rounded text-slate-700">
-                      {setting.key}
-                    </code>
-                    <button
-                      onClick={() => handleEdit(setting)}
-                      className="p-2 text-slate-400 hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      title="Edit setting"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                  </div>
-
-                  <p className="text-sm text-slate-500 mb-4 line-clamp-2">
-                    {setting.description || "No description provided"}
-                  </p>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                    <div className="font-semibold text-slate-800 truncate max-w-[200px]">
-                      {setting.value}
+              {settings.map((setting) => {
+                const isBoolean = isBooleanValue(setting.value)
+                const isTrue = parseBoolean(setting.value)
+                
+                return (
+                  <div
+                    key={setting.key}
+                    className="bg-white rounded-xl p-6 border border-slate-200 hover:border-[#ff7eb6]/30 hover:shadow-lg transition-all group"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <code className="text-sm font-mono bg-slate-100 px-2 py-1 rounded text-slate-700">
+                        {setting.key}
+                      </code>
+                      {!isBoolean && (
+                        <button
+                          onClick={() => handleEdit(setting)}
+                          className="p-2 text-slate-400 hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                          title="Edit setting"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => handleEdit(setting)}
-                      className="text-sm font-medium text-[#ff7eb6] hover:text-[#e05896] transition-colors"
-                    >
-                      Edit
-                    </button>
-                  </div>
 
-                  <div className="mt-3 text-xs text-slate-400">
-                    Updated: {new Date(setting.updated_at).toLocaleString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
+                    <p className="text-sm text-slate-500 mb-4 line-clamp-2">
+                      {setting.description || "No description provided"}
+                    </p>
+
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                      {isBoolean ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-medium ${isTrue ? "text-green-600" : "text-slate-500"}`}>
+                              {isTrue ? "Enabled" : "Disabled"}
+                            </span>
+                            <span className="text-xs text-slate-400 font-mono">
+                              ({setting.value})
+                            </span>
+                          </div>
+                          <ToggleSwitch 
+                            isOn={isTrue} 
+                            onToggle={() => handleToggle(setting)} 
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <div className="font-semibold text-slate-800 truncate max-w-[200px]">
+                            {setting.value}
+                          </div>
+                          <button
+                            onClick={() => handleEdit(setting)}
+                            className="text-sm font-medium text-[#ff7eb6] hover:text-[#e05896] transition-colors"
+                          >
+                            Edit
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="mt-3 text-xs text-slate-400">
+                      Updated: {new Date(setting.updated_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
