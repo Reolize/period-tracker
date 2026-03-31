@@ -275,6 +275,25 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
     loadData()
   }, [])
 
+  // Handle URL hash navigation - scroll to calendar section after page load
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash
+      if (hash === '#calendar-section') {
+        // Small delay to ensure DOM is fully rendered
+        const timer = setTimeout(() => {
+          const calendarSection = document.getElementById('calendar-section')
+          if (calendarSection) {
+            calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            // Clear the hash without reloading
+            window.history.replaceState(null, '', window.location.pathname)
+          }
+        }, 500)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [loading])
+
   async function saveCycle(e: React.FormEvent) {
     e.preventDefault()
     if (!start || !end) {
@@ -387,6 +406,8 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
 
   const isUnusuallyLongCycle = latestCycle && !latestCycle.end_date && cycleDay && cycleDay > 45
 
+  const hasNoCycles = cycles.length === 0
+
   if (loading) {
     return (
       <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
@@ -445,11 +466,15 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <StatusPill
-                label={fertility.label}
-                tone={fertility.tone}
-              />
-              <StatusPill label={`Confidence ${prediction?.confidence_score ?? "-"}%`} tone="neutral" />
+              {!hasNoCycles && (
+                <>
+                  <StatusPill
+                    label={fertility.label}
+                    tone={fertility.tone}
+                  />
+                  <StatusPill label={`Confidence ${prediction?.confidence_score ?? "-"}%`} tone="neutral" />
+                </>
+              )}
             </div>
             
             {isUnusuallyLongCycle && (
@@ -472,12 +497,36 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
           </div>
 
           <div className="space-y-3">
-            <InfoCard title="Next period" value={formatDate(prediction?.predicted_next_start)} />
-            <InfoCard title="Ovulation day" value={formatDate(prediction?.predicted_ovulation)} />
-            <InfoCard
-              title="Fertile window"
-              value={`${formatDate(prediction?.fertile_window_start)} - ${formatDate(prediction?.fertile_window_end)}`}
-            />
+            {hasNoCycles ? (
+              <div className="bg-gradient-to-br from-[#fff5f8] via-white to-[#fef0f5] rounded-2xl p-8 border border-[#f0e8ee] shadow-sm h-full flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full bg-[#ff7eb6]/10 flex items-center justify-center mb-4">
+                  <span className="text-3xl">🌸</span>
+                </div>
+                <h3 className="text-lg font-semibold text-[#3f2b4d] mb-2">
+                  Ready to get started?
+                </h3>
+                <p className="text-sm text-[#7d6b86] mb-6 leading-relaxed">
+                  We need a little info to calculate your cycle. Log your last period to unlock your predictions.
+                </p>
+                <button
+                  onClick={() => {
+                    document.getElementById('calendar-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                  className="px-6 py-3 bg-[#ff7eb6] hover:bg-[#e05896] text-white rounded-xl font-semibold shadow-sm shadow-[#ff7eb6]/30 transition-all w-full"
+                >
+                  Log your period
+                </button>
+              </div>
+            ) : (
+              <>
+                <InfoCard title="Next period" value={formatDate(prediction?.predicted_next_start)} />
+                <InfoCard title="Ovulation day" value={formatDate(prediction?.predicted_ovulation)} />
+                <InfoCard
+                  title="Fertile window"
+                  value={`${formatDate(prediction?.fertile_window_start)} - ${formatDate(prediction?.fertile_window_end)}`}
+                />
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -543,7 +592,7 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
       {/* MASTER-DETAIL LAYOUT FOR CALENDAR & HISTORY */}
       <div className="grid lg:grid-cols-2 gap-8 items-start">
         {/* CALENDAR + QUICK CYCLE INPUT */}
-        <section className="card flex flex-col items-center overflow-hidden w-full">
+        <section id="calendar-section" className="card flex flex-col items-center overflow-hidden w-full">
           <div className="w-full text-left">
             <h2 className="section-title">Cycle calendar</h2>
             <p className="text-sm text-gray-500 mb-6">

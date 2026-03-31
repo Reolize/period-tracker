@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
 import { Download, Sparkles, Activity, Calendar, BrainCircuit, ArrowRight } from "lucide-react"
 import { apiFetch } from "@/lib/api"
@@ -12,29 +13,61 @@ function formatMonth(dateStr: string) {
   return date.toLocaleDateString('en-US', { month: 'short' })
 }
 
+interface SymptomPattern {
+  name: string
+  days: number
+  timeframe: string
+  percentage: number
+}
+
 export default function TrendsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [cycles, setCycles] = useState<any[]>([])
   const [prediction, setPrediction] = useState<any>(null)
-  
-  // Mock data for Top Symptoms (since backend doesn't have an endpoint for this aggregation yet)
-  const topSymptoms = [
-    { name: "Cramps", days: 8, timeframe: "Usually Days 1-3", percentage: 80 },
-    { name: "Fatigue", days: 5, timeframe: "Usually Days 25-28", percentage: 50 },
-    { name: "Bloating", days: 4, timeframe: "Usually Days 26-28", percentage: 40 },
-    { name: "Headache", days: 3, timeframe: "Usually Days 1-2", percentage: 30 },
-  ]
+  const [symptomPatterns, setSymptomPatterns] = useState<SymptomPattern[]>([])
+  const [hasSymptomData, setHasSymptomData] = useState(false)
+
+  // Smart navigation handler - scroll if on dashboard, otherwise navigate to dashboard
+  const handleLogClick = () => {
+    const calendarSection = document.getElementById('calendar-section')
+    if (calendarSection) {
+      // On dashboard page - smooth scroll to calendar
+      calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else {
+      // On other page - navigate to dashboard with hash
+      router.push('/dashboard#calendar-section')
+    }
+  }
 
   useEffect(() => {
     async function loadData() {
       try {
+        setLoading(true)
+        
+        // Load cycles
         const cyRes = await apiFetch("/cycles/")
         // Get last 6 completed cycles and reverse to show chronological order
         const completedCycles = cyRes.filter((c: any) => c.cycle_length !== null).slice(0, 6).reverse()
         setCycles(completedCycles)
 
+        // Load predictions
         const prRes = await apiFetch("/cycles/predict")
         setPrediction(prRes)
+
+        // Load symptom patterns
+        try {
+          const patternsRes = await apiFetch("/cycles/symptoms/patterns")
+          if (patternsRes.patterns && patternsRes.patterns.length > 0) {
+            setSymptomPatterns(patternsRes.patterns)
+            setHasSymptomData(true)
+          } else {
+            setHasSymptomData(false)
+          }
+        } catch (err) {
+          console.log("No symptom patterns available yet")
+          setHasSymptomData(false)
+        }
       } catch (error) {
         console.error("Failed to load trends data:", error)
       } finally {
@@ -150,45 +183,54 @@ export default function TrendsPage() {
 
         {/* MIDDLE FULL WIDTH: AI Prediction Report */}
         <div className="lg:col-span-3">
-          <AIPredictionReport 
-            confidenceScore={prediction?.confidence_score || 85} 
-            cycleLength={avgCycleLength} 
-          />
+          <AIPredictionReport />
         </div>
 
         {/* BOTTOM FULL WIDTH: Top Symptoms */}
         <div className="lg:col-span-3 bg-white rounded-3xl p-6 sm:p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
           <h2 className="text-xl font-bold text-[#3f2b4d] mb-6">Top Symptoms Pattern</h2>
           
-          <div className="space-y-6">
-            {topSymptoms.map((symptom, index) => (
-              <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                
-                {/* Symptom Name & Frequency */}
-                <div className="sm:w-48 shrink-0">
-                  <div className="font-bold text-[#3f2b4d]">{symptom.name}</div>
-                  <div className="text-sm text-[#7d6b86]">{symptom.days} days total</div>
-                </div>
-
-                {/* Progress Bar Area */}
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 w-full bg-[#faf6f8] rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full bg-gradient-to-r from-[#ff7eb6] to-[#a78bfa]" 
-                      style={{ width: `${symptom.percentage}%` }}
-                    />
+          {hasSymptomData ? (
+            <div className="space-y-6">
+              {symptomPatterns.map((symptom: SymptomPattern, index: number) => (
+                <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                  
+                  {/* Symptom Name & Frequency */}
+                  <div className="sm:w-48 shrink-0">
+                    <div className="font-bold text-[#3f2b4d]">{symptom.name}</div>
+                    <div className="text-sm text-[#7d6b86]">{symptom.days} days total</div>
                   </div>
-                  <div className="text-xs font-medium text-[#b06a94] flex justify-end">
-                    {symptom.timeframe}
-                  </div>
-                </div>
 
+                  {/* Progress Bar Area */}
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-full bg-[#faf6f8] rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full bg-gradient-to-r from-[#ff7eb6] to-[#a78bfa]" 
+                        style={{ width: `${symptom.percentage}%` }}
+                      />
+                    </div>
+                    <div className="text-xs font-medium text-[#b06a94] flex justify-end">
+                      {symptom.timeframe}
+                    </div>
+                  </div>
+
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 rounded-full bg-[#faf6f8] flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">📝</span>
               </div>
-            ))}
-          </div>
+              <p className="text-sm text-[#7d6b86] mb-4">Log symptoms to see your patterns</p>
+            </div>
+          )}
 
           <div className="mt-8 pt-6 border-t border-[#f0e8ee] text-center">
-             <button className="text-sm font-semibold text-[#ff7eb6] hover:text-[#e05896] transition-colors inline-flex items-center gap-1">
+             <button 
+               onClick={handleLogClick}
+               className="text-sm font-semibold text-[#ff7eb6] hover:text-[#e05896] transition-colors inline-flex items-center gap-1"
+             >
                Log today's symptoms <ArrowRight size={14} />
              </button>
           </div>

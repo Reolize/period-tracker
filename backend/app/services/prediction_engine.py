@@ -62,15 +62,32 @@ class PredictionEngine:
 
     @staticmethod
     def weighted_prediction(values):
+        """
+        Calculate weighted prediction with outlier removal.
+        Returns None if insufficient data after outlier removal.
+        """
+        # Guard clause: empty list
+        if not values:
+            return None
+        
+        # Need at least 1 value for mean
+        if len(values) < 1:
+            return None
+            
         avg = mean(values)
+        # stdev requires at least 2 data points
         sd = stdev(values) if len(values) > 1 else 0
 
-        # Remove outliers
+        # Remove outliers (>2 SD from mean)
         if sd > 0:
             values = [
                 v for v in values
                 if abs((v - avg) / sd) <= 2
             ]
+        
+        # Guard clause: if outlier removal removed all data
+        if not values or len(values) < 1:
+            return None
 
         if len(values) < 3:
             return None
@@ -78,6 +95,7 @@ class PredictionEngine:
         weights = list(range(1, len(values) + 1))
         weighted_sum = sum(v * w for v, w in zip(values, weights))
         weighted_avg = round(weighted_sum / sum(weights))
+        # stdev requires at least 2 data points
         std_dev = round(stdev(values), 2) if len(values) > 1 else 0
 
         return weighted_avg, std_dev, len(values)
@@ -86,11 +104,24 @@ class PredictionEngine:
     def predict(cls, db, user_id, cycles):
         from app.models.user_setup import UserSetup
 
+        # Guard clause: handle empty cycles list safely
+        if not cycles:
+            cycles = []
+            
         if cycles:
-            cycles = cycles[-cls.WINDOW_SIZE:]
-            last_start_date = cycles[-1].start_date
-            cycle_lengths = [c.cycle_length for c in cycles if c.cycle_length]
-            period_lengths = [c.period_length for c in cycles if c.period_length]
+            # Only use completed cycles (cycles with end_date)
+            completed_cycles = [c for c in cycles if c.end_date is not None]
+            
+            if not completed_cycles:
+                # No completed cycles - use fallback
+                cycles_for_ml = []
+                last_start_date = cycles[0].start_date if cycles else date.today()
+            else:
+                cycles_for_ml = completed_cycles[-cls.WINDOW_SIZE:]
+                last_start_date = cycles_for_ml[-1].start_date if cycles_for_ml else date.today()
+                
+            cycle_lengths = [c.cycle_length for c in cycles_for_ml if c.cycle_length]
+            period_lengths = [c.period_length for c in cycles_for_ml if c.period_length]
         else:
             setup = db.query(UserSetup).filter(UserSetup.user_id == user_id).first()
             last_start_date = (
@@ -107,7 +138,8 @@ class PredictionEngine:
         priors = load_global_priors()
 
         # Fallback: if user has insufficient history, use global ML model
-        if len(cycles or []) < cls.MIN_REQUIRED or not cycle_result or not period_result:
+        completed_count = len([c for c in (cycles or []) if c.end_date is not None])
+        if completed_count < cls.MIN_REQUIRED or not cycle_result or not period_result:
             if ml_predict_next_cycle:
                 # Use our new HistGradientBoosting model!
                 user_features = cls._build_user_ml_features(db, user_id)

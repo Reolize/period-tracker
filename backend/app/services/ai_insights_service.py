@@ -428,7 +428,7 @@ class AIInsightsService:
         
         # Calculate cycle regularity metrics (with DB thresholds)
         regularity = None
-        if cycle_std_dev is not None:
+        if cycles and len(cycles) >= 2 and cycle_std_dev is not None:
             strict_sd = get_float_setting(db, "ai_regularity_strict_sd", DEFAULTS["ai_regularity_strict_sd"])
             moderate_sd = get_float_setting(db, "ai_regularity_moderate_sd", DEFAULTS["ai_regularity_moderate_sd"])
             
@@ -448,6 +448,14 @@ class AIInsightsService:
                     "strict_sd": strict_sd,
                     "moderate_sd": moderate_sd
                 }
+            }
+        elif not cycles or len(cycles) < 2:
+            # Insufficient data for new users
+            regularity = {
+                "std_dev": 0,
+                "regularity_level": "insufficient_data",
+                "cycles_logged": len(cycles) if cycles else 0,
+                "message": "Log at least 2 complete cycles to see your cycle regularity"
             }
         
         # Generate recommendation (with DB settings)

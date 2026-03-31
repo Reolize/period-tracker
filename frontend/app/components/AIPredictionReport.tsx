@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Brain, TrendingUp, Activity, AlertCircle, Sparkles, Moon, Smile, Zap, Wind } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 
@@ -30,6 +31,7 @@ interface CycleRegularity {
   std_dev: number
   regularity_level: string
   cycles_logged: number
+  message?: string
 }
 
 interface AIInsightsResponse {
@@ -93,7 +95,11 @@ function getProbabilityColor(probability: number): string {
 }
 
 // Helper to get regularity label
-function getRegularityLabel(level: string): string {
+function getRegularityLabel(level: string, cyclesLogged?: number): string {
+  // Show "Need more data" for new users
+  if (level === "insufficient_data" || !cyclesLogged || cyclesLogged < 2) {
+    return "Need more data"
+  }
   switch (level) {
     case "very_regular":
       return "Very Regular ✨"
@@ -108,9 +114,22 @@ function getRegularityLabel(level: string): string {
 
 // Main Component
 export default function AIPredictionReport() {
+  const router = useRouter()
   const [insights, setInsights] = useState<AIInsightsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Smart navigation handler - scroll if on dashboard, otherwise navigate to dashboard
+  const handleLogClick = () => {
+    const calendarSection = document.getElementById('calendar-section')
+    if (calendarSection) {
+      // On dashboard page - smooth scroll to calendar
+      calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else {
+      // On other page - navigate to dashboard with hash
+      router.push('/dashboard#calendar-section')
+    }
+  }
 
   useEffect(() => {
     const fetchInsights = async () => {
@@ -154,8 +173,14 @@ export default function AIPredictionReport() {
   // Get cycle regularity from API
   const cycleRegularity = insights?.cycle_regularity
 
+  // Check if data is personalized (at least 2 cycles needed)
+  const isPersonalized = cycleRegularity && cycleRegularity.cycles_logged >= 2 && 
+    cycleRegularity.regularity_level !== "insufficient_data"
+  const isInsufficientData = cycleRegularity?.regularity_level === "insufficient_data" || 
+    (cycleRegularity && cycleRegularity.cycles_logged < 2)
+
   // Calculate confidence score based on data quality
-  const confidenceScore = cycleRegularity?.cycles_logged
+  const confidenceScore = isPersonalized && cycleRegularity?.cycles_logged
     ? Math.min(95, 40 + cycleRegularity.cycles_logged * 10)
     : 0
 
@@ -227,24 +252,30 @@ export default function AIPredictionReport() {
                 </span>
               </div>
               <div className="text-3xl font-bold text-[#3f2b4d]">
-                {(cycleRegularity?.std_dev || 2.5).toFixed(1)}
-                <span className="text-lg font-medium text-[#7d6b86] ml-1">SD</span>
+                {isInsufficientData ? (
+                  <span className="text-lg text-[#7d6b86]">—</span>
+                ) : (
+                  <>
+                    {(cycleRegularity?.std_dev || 2.5).toFixed(1)}
+                    <span className="text-lg font-medium text-[#7d6b86] ml-1">SD</span>
+                  </>
+                )}
               </div>
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-xs text-[#b06a94]">
-                  {getRegularityLabel(cycleRegularity?.regularity_level || "")}
+                  {getRegularityLabel(cycleRegularity?.regularity_level || "", cycleRegularity?.cycles_logged)}
                 </span>
               </div>
             </div>
 
-            {/* Learned Luteal Phase */}
+            {/* Learned Luteal Phase / Standard Luteal Phase */}
             <div className="bg-white rounded-2xl p-6 border border-[#f0e8ee] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-[#fef3c7] flex items-center justify-center">
                   <Sparkles className="w-5 h-5 text-[#f59e0b]" />
                 </div>
                 <span className="text-sm font-medium text-[#7d6b86]">
-                  Learned Luteal Phase
+                  {isPersonalized ? "Learned Luteal Phase" : "Standard Luteal Phase"}
                 </span>
               </div>
               <div className="text-3xl font-bold text-[#3f2b4d]">
@@ -253,7 +284,9 @@ export default function AIPredictionReport() {
               </div>
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-xs text-[#b06a94]">
-                  Ovulation offset from period start
+                  {isPersonalized 
+                    ? "Ovulation offset from period start" 
+                    : "Default: 14 days (log cycles to personalize)"}
                 </span>
               </div>
             </div>
@@ -268,8 +301,12 @@ export default function AIPredictionReport() {
           <h3 className="text-lg font-semibold text-[#3f2b4d]">
             AI Forecast for Your Next Cycle
           </h3>
-          <span className="ml-auto px-3 py-1 bg-[#ff7eb6]/10 text-[#ff7eb6] text-xs font-medium rounded-full">
-            {symptomForecasts.some(s => s.probability > 0) ? "AI Personalized" : "Beta"}
+          <span className={`ml-auto px-3 py-1 text-xs font-medium rounded-full ${
+            isPersonalized 
+              ? "bg-[#ff7eb6]/10 text-[#ff7eb6]" 
+              : "bg-slate-100 text-slate-500"
+          }`}>
+            {isPersonalized ? "AI Personalized" : "Global Average"}
           </span>
         </div>
 
@@ -352,7 +389,10 @@ export default function AIPredictionReport() {
               {recommendation.message}
             </p>
             {recommendation.action && (
-              <button className="mt-3 px-4 py-2 bg-white rounded-lg text-sm font-medium text-[#ff7eb6] border border-[#ff7eb6]/20 hover:bg-[#fff0f6] transition-colors">
+              <button 
+                onClick={handleLogClick}
+                className="mt-3 px-4 py-2 bg-white rounded-lg text-sm font-medium text-[#ff7eb6] border border-[#ff7eb6]/20 hover:bg-[#fff0f6] transition-colors"
+              >
                 {recommendation.action}
               </button>
             )}

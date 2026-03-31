@@ -9,6 +9,7 @@ from app.schemas.cycle_schema import PredictionResponse, HealthAlert as HealthAl
 from app.services.prediction_engine import PredictionEngine
 from app.services.health_utils import assess_cycle_health
 from app.services.ai_insights_service import AIInsightsService
+from app.services.symptom_pattern_service import symptom_pattern_service
 
 from app.schemas.cycle_schema import CycleCreate, CycleResponse
 from app.services.cycle_service import create_cycle
@@ -76,6 +77,23 @@ def get_ai_insights(
         recommendation=insights["recommendation"],
         cycle_regularity=insights["cycle_regularity"]
     )
+
+
+@router.get("/symptoms/patterns")
+def get_symptom_patterns(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Get top symptom patterns based on user's daily logs.
+    Returns top 4 most frequent symptoms with their typical cycle day ranges.
+    """
+    patterns = symptom_pattern_service.get_top_symptoms_patterns(
+        db=db,
+        user_id=current_user.id,
+        top_n=4
+    )
+    return {"patterns": patterns}
 
 
 @router.get("/export")
