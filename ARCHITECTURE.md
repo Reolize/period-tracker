@@ -2,7 +2,7 @@
 
 > **สำหรับ:** Thesis Defense / การส่งมอบโปรเจกต์  
 > **จัดทำโดย:** Senior DevOps Engineer  
-> **วันที่:** March 2026
+> **วันที่:** April 2026
 
 ---
 
@@ -105,20 +105,35 @@ period-tracker/
 ├── frontend/                      # Next.js Application
 │   ├── app/
 │   │   ├── (app)/                 # Group routes (App Router)
+│   │   │   ├── account/           # User account management
+│   │   │   ├── add-cycle/         # Quick add cycle page
 │   │   │   ├── admin/             # Admin Dashboard
 │   │   │   │   ├── page.tsx       # Admin overview
-│   │   │   │   └── settings/      # System settings UI
-│   │   │   │       └── page.tsx   # Toggle switches for boolean settings
+│   │   │   │   ├── settings/      # System settings UI
+│   │   │   │   │   └── page.tsx   # Toggle switches for boolean settings
+│   │   │   │   └── users/         # User management
 │   │   │   ├── dashboard/         # User dashboard
-│   │   │   ├── cycles/            # Cycle management
 │   │   │   ├── daily-log/         # Daily symptom tracking
-│   │   │   └── notifications/     # Notification center
+│   │   │   ├── data-privacy/      # Privacy settings page
+│   │   │   ├── health-library/    # Health education content
+│   │   │   ├── notifications/     # Notification center
+│   │   │   └── trends/            # Insights & Trends page
 │   │   │
 │   │   ├── components/            # Shared React components
-│   │   │   ├── CycleDashboard.tsx # Main dashboard component
-│   │   │   ├── AIPredictionReport.tsx # AI insights display
-│   │   │   ├── AdminSidebar.tsx   # Admin navigation
-│   │   │   └── ui/                # Reusable UI components
+│   │   │   ├── AIPredictionReport.tsx    # AI insights display
+│   │   │   ├── CycleCalendar.tsx         # Calendar component
+│   │   │   ├── CycleChart.tsx            # Charts visualization
+│   │   │   ├── CycleDashboard.tsx        # Main dashboard component
+│   │   │   ├── CycleHistoryList.tsx      # Cycle history accordion
+│   │   │   ├── DailyLogModal.tsx         # Daily log editor modal
+│   │   │   ├── EditCycleModal.tsx        # Cycle edit modal
+│   │   │   ├── Header.tsx                # App header
+│   │   │   ├── OnboardingForm.tsx        # New user onboarding
+│   │   │   ├── PredictionTimeline.tsx    # Prediction visualization
+│   │   │   ├── PregnancyDashboard.tsx    # Pregnancy tracking mode
+│   │   │   ├── Sidebar.tsx               # Navigation sidebar
+│   │   │   ├── AdminSidebar.tsx          # Admin navigation
+│   │   │   └── ui/                       # Reusable UI components
 │   │   │
 │   │   └── lib/
 │   │       └── api.ts             # API client utilities
@@ -135,9 +150,12 @@ period-tracker/
 │   │   │   ├── admin.py           # Admin settings API
 │   │   │   ├── cycle.py           # Cycle CRUD + AI insights
 │   │   │   ├── daily_log.py       # Daily log management
+│   │   │   ├── deps.py            # Database dependency
 │   │   │   ├── notification.py    # Notification system
 │   │   │   ├── prediction.py      # Prediction endpoints
-│   │   │   └── deps.py            # Database dependency
+│   │   │   ├── protected.py       # Protected test endpoints
+│   │   │   ├── test_db.py         # Database test endpoint
+│   │   │   └── user_setup.py      # User setup/profile API
 │   │   │
 │   │   ├── core/                  # Core infrastructure
 │   │   │   ├── database.py        # SQLAlchemy engine & session
@@ -146,23 +164,29 @@ period-tracker/
 │   │   │
 │   │   ├── models/                # Database Models (SQLAlchemy)
 │   │   │   ├── user.py            # User model
+│   │   │   ├── user_setup.py      # User profile & onboarding data
 │   │   │   ├── cycle.py           # Menstrual cycle model
 │   │   │   ├── daily_log.py       # Daily symptom log
 │   │   │   ├── notification.py    # Notification model
-│   │   │   ├── system_setting.py  # Dynamic configuration
-│   │   │   └── user_setup.py      # User profile
+│   │   │   └── system_setting.py  # Dynamic configuration
 │   │   │
 │   │   ├── schemas/               # Pydantic Schemas (DTOs)
-│   │   │   ├── user_schema.py
 │   │   │   ├── cycle_schema.py
-│   │   │   └── notification_schema.py
+│   │   │   ├── daily_log_schema.py
+│   │   │   ├── notification_schema.py
+│   │   │   ├── prediction_schema.py
+│   │   │   ├── user_schema.py
+│   │   │   └── user_setup_schema.py
 │   │   │
-│   │   └── services/              # Business Logic Layer
-│   │       ├── ai_insights_service.py      # AI insights engine
-│   │       ├── prediction_engine.py        # Hybrid prediction
-│   │       ├── prediction_service.py       # Prediction facade
-│   │       ├── global_priors.py            # Global statistics
-│   │       └── cycle_service.py            # Cycle utilities
+│   │   ├── services/              # Business Logic Layer
+│   │   │   ├── ai_insights_service.py      # AI insights engine
+│   │   │   ├── cycle_service.py            # Cycle utilities
+│   │   │   ├── global_priors.py            # Global statistics
+│   │   │   ├── health_utils.py             # Health calculations
+│   │   │   ├── prediction_engine.py        # Hybrid prediction
+│   │   │   ├── prediction_service.py       # Prediction facade
+│   │   │   ├── symptom_pattern_service.py  # Symptom pattern analysis
+│   │   │   └── user_service.py             # User utilities
 │   │
 │   ├── app/main.py                # FastAPI app factory
 │   ├── requirements.txt           # Python dependencies
@@ -176,8 +200,14 @@ period-tracker/
     │   ├── features.py            # Feature engineering
     │   └── predict.py             # Inference module
     │
+    ├── personalization/
+    │   ├── fine_tune.py           # Model fine-tuning for users
+    │   └── hybrid_strategy.py     # Hybrid prediction strategy
+    │
+    ├── data_prep/
+    │   └── build_canonical_cycles.py  # Data preprocessing
+    │
     ├── data/                      # Training datasets
-    ├── data_prep/                 # Data preprocessing
     └── saved_models/              # Trained model artifacts
 ```
 
@@ -790,6 +820,132 @@ useEffect(() => {
 
 ---
 
+### 5.8 Symptom Pattern Analysis (NEW)
+
+**Architecture Pattern:** Statistical Analysis + Real-time Aggregation
+
+ฟีเจอร์ใหม่ล่าสุดสำหรับวิเคราะห์อาการที่เกิดบ่อยที่สุด (Top Symptoms Pattern) พร้อมช่วงวันในรอบเดือนที่มักเกิด
+
+#### Files & Functions:
+
+| Component | File Path | Key Functions |
+|-----------|-----------|---------------|
+| **Analysis Service** | `backend/app/services/symptom_pattern_service.py` | `get_top_symptoms_patterns()`, `analyze_symptom_frequencies()` |
+| **API Endpoint** | `backend/app/api/cycle.py:82-96` | `GET /cycles/symptoms/patterns` |
+| **Frontend Display** | `frontend/app/(app)/trends/page.tsx` | `TopSymptomsPattern` component |
+
+#### Database Schema:
+
+```python
+# backend/app/models/daily_log.py
+class DailyLog(Base):
+    __tablename__ = "daily_logs"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    log_date = Column(Date, nullable=False)
+    physical_symptoms = Column(JSONB, default=list)  # ["cramps", "bloating", ...]
+    moods = Column(JSONB, default=list)
+    # ... other fields
+```
+
+#### API Response Format:
+
+```json
+{
+  "patterns": [
+    {
+      "name": "Cramps",
+      "days": 12,
+      "timeframe": "Period - Follicular phase",
+      "percentage": 85
+    },
+    {
+      "name": "Mood Swing",
+      "days": 8,
+      "timeframe": "Luteal phase",
+      "percentage": 67
+    }
+  ]
+}
+```
+
+#### Key Features:
+
+1. **Frequency Analysis**: นับจำนวนวันที่มีอาการแต่ละประเภทจาก Daily Logs
+2. **Cycle Day Mapping**: แมพอาการกับวันในรอบเดือน (Period, Follicular, Ovulation, Luteal)
+3. **Top N Results**: ส่งคืนอาการที่เกิดบ่อยที่สุด 4 อันดับแรก
+4. **Empty State Handling**: แสดงข้อความ "Log symptoms to see your patterns" ถ้ายังไม่มีข้อมูล
+
+---
+
+### 5.9 Smart Navigation & UX Improvements (NEW)
+
+**Architecture Pattern:** Client-side Navigation with Hash-based Deep Linking
+
+ปรับปรุง UX โดยการเพิ่มระบบนำทางอัจฉริยะสำหรับปุ่มต่างๆ ที่ต้องการ scroll ไปยังปฏิทิน
+
+#### Problem:
+
+ปุ่ม "Log symptoms", "Log next cycle" ใน `AIPredictionReport` และ `TopSymptomsPattern` ใช้ `scrollIntoView` โดยตรง ทำให้ไม่ทำงานเมื่อผู้ใช้อยู่บนหน้าอื่น (เช่น Trends page)
+
+#### Solution:
+
+ใช้ **Smart Navigation Handler** ที่ตรวจสอบตำแหน่งปัจจุบันก่อนตัดสินใจ:
+
+```typescript
+// frontend/app/components/AIPredictionReport.tsx
+const handleLogClick = () => {
+  const calendarSection = document.getElementById('calendar-section')
+  if (calendarSection) {
+    // On dashboard page - smooth scroll to calendar
+    calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } else {
+    // On other page - navigate to dashboard with hash
+    router.push('/dashboard#calendar-section')
+  }
+}
+```
+
+#### Implementation Files:
+
+| Component | Navigation Logic |
+|-----------|------------------|
+| `AIPredictionReport.tsx` | `handleLogClick()` with router fallback |
+| `trends/page.tsx` | `handleLogClick()` for "Log today's symptoms" button |
+| `CycleDashboard.tsx` | `useEffect` to handle `#calendar-section` hash on mount |
+
+#### Hash-based Deep Linking:
+
+```typescript
+// CycleDashboard.tsx - Handle incoming hash navigation
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash
+    if (hash === '#calendar-section') {
+      const timer = setTimeout(() => {
+        const calendarSection = document.getElementById('calendar-section')
+        if (calendarSection) {
+          calendarSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          // Clear hash without reloading
+          window.history.replaceState(null, '', window.location.pathname)
+        }
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }
+}, [loading])
+```
+
+#### Benefits:
+
+- ✅ **Cross-page Navigation**: กดปุ่มจากหน้าใดก็ได้ ระบบจะพาไปหน้า Dashboard และ scroll ไปที่ปฏิทิน
+- ✅ **Smooth UX**: ใช้ smooth scroll ทั้งใน-page และ cross-page
+- ✅ **No Hard Refresh**: ใช้ Next.js router ไม่ทำให้หน้าเว็บกระพริบ
+- ✅ **Clean URLs**: ลบ hash หลัง scroll เสร็จ เพื่อความสะอาด
+
+---
+
 ## 6. สรุปการ Deploy และ Run
 
 ### Quick Start (Docker)
@@ -829,4 +985,4 @@ docker-compose exec backend python create_admin.py
 
 **จัดทำโดย:** Engineering Team  
 **เอกสารฉบับนี้:** สำหรับ Thesis Defense และส่งมอบโปรเจกต์  
-**ล่าสุด:** March 2026
+**ล่าสุด:** April 2026
