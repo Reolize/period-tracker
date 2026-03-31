@@ -36,6 +36,8 @@ export default function AccountPage() {
   const [dateOfBirth, setDateOfBirth] = useState("")
   const [heightCm, setHeightCm] = useState<number | "">("")
   const [weightKg, setWeightKg] = useState<number | "">("")
+  const [pronouns, setPronouns] = useState<string>("")
+  const [hasPcosOrIrregular, setHasPcosOrIrregular] = useState<boolean>(false)
   const [profileSaving, setProfileSaving] = useState(false)
 
   // Mode Switcher States
@@ -61,6 +63,8 @@ export default function AccountPage() {
         setDateOfBirth(setupRes.date_of_birth || "")
         setHeightCm(setupRes.height_cm || "")
         setWeightKg(setupRes.weight_kg || "")
+        setPronouns(setupRes.pronouns || "")
+        setHasPcosOrIrregular(setupRes.has_pcos_or_irregular || false)
       }
 
       const cyclesRes = await apiFetch("/cycles/")
@@ -138,6 +142,8 @@ export default function AccountPage() {
         date_of_birth: dateOfBirth || null,
         height_cm: heightCm || null,
         weight_kg: weightKg || null,
+        pronouns: pronouns || null,
+        has_pcos_or_irregular: hasPcosOrIrregular,
       }
 
       await apiFetch("/user-setup/", {
@@ -289,6 +295,41 @@ export default function AccountPage() {
                     />
                   </div>
                 </div>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">Pronouns</label>
+                    <select
+                      value={pronouns}
+                      onChange={e => setPronouns(e.target.value)}
+                      className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d] bg-white"
+                    >
+                      <option value="">Select pronouns (optional)</option>
+                      <option value="She/Her">She/Her</option>
+                      <option value="He/Him">He/Him</option>
+                      <option value="They/Them">They/Them</option>
+                      <option value="Ze/Zir">Ze/Zir</option>
+                      <option value="Xe/Xem">Xe/Xem</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-[#f0e8ee]">
+                  <input
+                    type="checkbox"
+                    id="pcos-toggle"
+                    checked={hasPcosOrIrregular}
+                    onChange={e => setHasPcosOrIrregular(e.target.checked)}
+                    className="mt-1 w-5 h-5 accent-[#ff7eb6] cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="pcos-toggle" className="block text-sm font-medium text-[#3f2b4d] cursor-pointer">
+                      PCOS / Irregular Cycles Mode
+                    </label>
+                    <p className="text-xs text-[#7d6b86] mt-1">
+                      Enable this if you have PCOS or irregular cycles. AI will focus on symptom patterns instead of cycle predictions.
+                    </p>
+                  </div>
+                </div>
                 <div className="flex gap-3 justify-end pt-2">
                   <button 
                     onClick={() => {
@@ -297,6 +338,8 @@ export default function AccountPage() {
                       setDateOfBirth(setupData?.date_of_birth || "")
                       setHeightCm(setupData?.height_cm || "")
                       setWeightKg(setupData?.weight_kg || "")
+                      setPronouns(setupData?.pronouns || "")
+                      setHasPcosOrIrregular(setupData?.has_pcos_or_irregular || false)
                     }}
                     className="px-5 py-2.5 rounded-xl border border-[#f0e8ee] text-[#7d6b86] font-medium hover:bg-white transition-colors"
                   >
@@ -318,6 +361,10 @@ export default function AccountPage() {
                   <p className="text-[#3f2b4d] font-medium">{dateOfBirth ? new Date(dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : "-"}</p>
                 </div>
                 <div>
+                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5">👤 Pronouns</p>
+                  <p className="text-[#3f2b4d] font-medium">{pronouns || "-"}</p>
+                </div>
+                <div>
                   <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5"><Ruler size={14}/> Height</p>
                   <p className="text-[#3f2b4d] font-medium">{heightCm ? `${heightCm} cm` : "-"}</p>
                 </div>
@@ -325,6 +372,12 @@ export default function AccountPage() {
                   <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5"><Scale size={14}/> Weight</p>
                   <p className="text-[#3f2b4d] font-medium">{weightKg ? `${weightKg} kg` : "-"}</p>
                 </div>
+                {hasPcosOrIrregular && (
+                  <div className="sm:col-span-2">
+                    <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5">🏥 PCOS/Irregular Mode</p>
+                    <p className="text-[#3f2b4d] font-medium">Enabled - AI focuses on symptom patterns</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

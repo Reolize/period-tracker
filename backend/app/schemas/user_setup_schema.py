@@ -23,6 +23,10 @@ class UserSetupUpsert(BaseModel):
     # Pregnancy Tracking Data
     pregnancy_due_date: Optional[date] = None
     pregnancy_weeks_override: Optional[int] = Field(default=None, ge=1, le=42)
+    
+    # Inclusivity & Health Conditions
+    pronouns: Optional[str] = Field(default=None, max_length=50)  # e.g., "They/Them"
+    has_pcos_or_irregular: bool = False
 
 
 class UserGoalUpdate(BaseModel):
@@ -47,6 +51,10 @@ class UserSetupResponse(BaseModel):
     # Pregnancy Tracking Data
     pregnancy_due_date: Optional[date] = None
     pregnancy_weeks_override: Optional[int] = None
+    
+    # Inclusivity & Health Conditions
+    pronouns: Optional[str] = None
+    has_pcos_or_irregular: bool = False
 
     class Config:
         from_attributes = True

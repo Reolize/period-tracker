@@ -34,6 +34,10 @@ export interface UserSetup {
   avg_cycle_length_days: number | null
   contraception_method: ContraceptionMethod
   app_goal: AppGoal
+  
+  // Inclusivity & Health Conditions
+  pronouns: string | null
+  has_pcos_or_irregular: boolean
 }
 
 export type UserSetupUpsert = Omit<UserSetup, "id" | "user_id">
@@ -78,4 +82,47 @@ export interface DailyLog {
 }
 
 export type DailyLogUpsert = Omit<DailyLog, "id" | "user_id">
+
+// ---- Community Board ----
+export type PostCategory = "PCOS" | "Tips" | "Support" | "General" | "Questions"
+
+export type ReactionType = "hug" | "me_too" | "support" | "celebrate"
+
+export interface AuthorInfo {
+  id: number | null
+  display_name: string
+  is_anonymous: boolean
+}
+
+export interface ReactionSummary {
+  hug: number
+  me_too: number
+  support: number
+  celebrate: number
+}
+
+export interface Comment {
+  id: number
+  content: string
+  author: AuthorInfo
+  created_at: string
+}
+
+export interface Post {
+  id: number
+  title: string
+  content: string
+  category: PostCategory
+  author: AuthorInfo
+  comment_count: number
+  reactions: ReactionSummary
+  user_reaction: ReactionType | null
+  is_author?: boolean  // Indicates if current user is the author
+  created_at: string
+  updated_at: string
+}
+
+export interface PostDetail extends Post {
+  comments: Comment[]
+}
 

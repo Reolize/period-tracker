@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+export const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export async function apiFetch(
   endpoint: string,
@@ -12,6 +12,7 @@ export async function apiFetch(
       headers: {
         "Content-Type": "application/json",
         "Bypass-Tunnel-Reminder": "true", // Add this to bypass localtunnel warning page
+        "ngrok-skip-browser-warning": "69420", // Bypass Ngrok warning page (Error 511)
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },

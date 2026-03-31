@@ -36,6 +36,17 @@ const APP_GOAL_OPTIONS: { value: AppGoal, label: string }[] = [
   { value: "general_health", label: "General health" },
 ]
 
+const PRONOUNS_OPTIONS: { value: string, label: string }[] = [
+  { value: "", label: "Prefer not to say" },
+  { value: "She/Her", label: "She/Her" },
+  { value: "He/Him", label: "He/Him" },
+  { value: "They/Them", label: "They/Them" },
+  { value: "She/They", label: "She/They" },
+  { value: "He/They", label: "He/They" },
+  { value: "Xe/Xem", label: "Xe/Xem" },
+  { value: "Ze/Zir", label: "Ze/Zir" },
+]
+
 function toIntOrNull(v: string) {
   if (v.trim() === "") return null
   const n = Number(v)
@@ -55,6 +66,8 @@ export default function OnboardingForm({
       avg_cycle_length_days: initial?.avg_cycle_length_days ?? null,
       contraception_method: (initial?.contraception_method ?? "none") as ContraceptionMethod,
       app_goal: (initial?.app_goal ?? "track_cycle") as AppGoal,
+      pronouns: initial?.pronouns ?? "",
+      has_pcos_or_irregular: initial?.has_pcos_or_irregular ?? false,
     }
   }, [initial])
 
@@ -67,6 +80,8 @@ export default function OnboardingForm({
   )
   const [contraception, setContraception] = useState<ContraceptionMethod>(defaults.contraception_method)
   const [goal, setGoal] = useState<AppGoal>(defaults.app_goal)
+  const [pronouns, setPronouns] = useState<string>(defaults.pronouns)
+  const [hasPcosOrIrregular, setHasPcosOrIrregular] = useState<boolean>(defaults.has_pcos_or_irregular)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -81,6 +96,8 @@ export default function OnboardingForm({
       avg_cycle_length_days: toIntOrNull(avgCycleLen),
       contraception_method: contraception,
       app_goal: goal,
+      pronouns: pronouns || null,
+      has_pcos_or_irregular: hasPcosOrIrregular,
     }
 
     setSaving(true)
@@ -154,6 +171,43 @@ export default function OnboardingForm({
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Inclusivity Section */}
+        <div className="border-t border-gray-200 pt-4 mt-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">Personal Preferences</h3>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Pronouns (optional)</label>
+              <select
+                value={pronouns}
+                onChange={(e) => setPronouns(e.target.value)}
+                className="input"
+              >
+                {PRONOUNS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasPcosOrIrregular}
+                  onChange={(e) => setHasPcosOrIrregular(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-pink-500 focus:ring-pink-500"
+                />
+                <div>
+                  <div className="font-medium text-sm text-gray-700">I have PCOS or consistently irregular cycles</div>
+                  <div className="text-xs text-gray-500">AI will focus on symptom patterns instead of cycle predictions</div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 

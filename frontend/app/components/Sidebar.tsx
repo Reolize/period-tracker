@@ -15,7 +15,8 @@ import {
   BarChart3,
   Users,
   Home,
-  LogOut
+  LogOut,
+  MessageCircle
 } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 
@@ -48,6 +49,7 @@ export default function Sidebar({ onMobileClose }: SidebarProps) {
   const userNavItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Insights", path: "/trends", icon: LineChart },
+    { name: "Community", path: "/community", icon: MessageCircle },
     { name: "Health Library", path: "/health-library", icon: BookOpen },
     { name: "Notifications", path: "/notifications", icon: Bell },
     { name: "Data Privacy", path: "/data-privacy", icon: ShieldCheck },

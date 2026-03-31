@@ -313,17 +313,41 @@ class SmartRecommendationEngine:
         cycle_std_dev: float,
         confidence_score: float,
         cycle_count: int,
-        symptom_probabilities: Dict
+        symptom_probabilities: Dict,
+        has_pcos_or_irregular: bool = False
     ) -> dict:
         """
         Generate personalized recommendation based on:
         - Cycle regularity (SD) with thresholds from DB
         - Data confidence
         - Number of logged cycles
+        - PCOS/Irregular cycle mode (skips variability warnings)
         """
         # Get thresholds from DB
         strict_sd = get_float_setting(db, "ai_regularity_strict_sd", DEFAULTS["ai_regularity_strict_sd"])
         moderate_sd = get_float_setting(db, "ai_regularity_moderate_sd", DEFAULTS["ai_regularity_moderate_sd"])
+        
+        # Rule 0: PCOS/Irregular mode - focus on symptom patterns instead of cycle length
+        if has_pcos_or_irregular and cycle_count >= 2:
+            high_prob_symptoms = [
+                s for s, data in symptom_probabilities.items()
+                if data.get("probability", 0) > 60
+            ]
+            
+            if high_prob_symptoms:
+                return {
+                    "type": "info",
+                    "message": f"PCOS/Irregular mode is active. AI is focusing on your symptom patterns rather than cycle length. You often experience {', '.join(high_prob_symptoms[:2])}.",
+                    "action": "Log daily symptoms",
+                    "priority": "medium"
+                }
+            else:
+                return {
+                    "type": "info",
+                    "message": "PCOS/Irregular mode is active. AI is focusing on your symptom patterns rather than cycle length predictions.",
+                    "action": "Log daily symptoms",
+                    "priority": "medium"
+                }
         
         # Rule 1: New user / Insufficient data
         if cycle_count < 2 or confidence_score < 40:
@@ -334,8 +358,8 @@ class SmartRecommendationEngine:
                 "priority": "medium"
             }
         
-        # Rule 2: High variability cycles (using DB threshold)
-        if cycle_std_dev > moderate_sd:
+        # Rule 2: High variability cycles (using DB threshold) - SKIP for PCOS users
+        if not has_pcos_or_irregular and cycle_std_dev > moderate_sd:
             high_prob_symptoms = [
                 s for s, data in symptom_probabilities.items()
                 if data.get("probability", 0) > 70
@@ -458,9 +482,16 @@ class AIInsightsService:
                 "message": "Log at least 2 complete cycles to see your cycle regularity"
             }
         
-        # Generate recommendation (with DB settings)
+        # Generate recommendation (with DB settings and PCOS awareness)
+        # Fetch user setup to check for PCOS/irregular mode
+        from app.models.user_setup import UserSetup
+        user_setup = db.query(UserSetup).filter(UserSetup.user_id == user_id).first()
+        has_pcos = False
+        if user_setup and user_setup.has_pcos_or_irregular == "true":
+            has_pcos = True
+        
         recommendation = SmartRecommendationEngine.generate_recommendation(
-            db, cycle_std_dev or 5.0, confidence_score or 50.0, len(cycles), symptom_probs
+            db, cycle_std_dev or 5.0, confidence_score or 50.0, len(cycles), symptom_probs, has_pcos
         )
         
         return {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { apiFetch } from "@/lib/api"
 import DailyLogModal from "@/app/components/DailyLogModal"
 import AIPredictionReport from "@/app/components/AIPredictionReport"
+import ChatbotWidget from "@/app/components/ChatbotWidget"
 import { ChevronDown, ChevronUp, Droplet, Frown, Thermometer, Smile, Pencil } from "lucide-react"
 
 import Calendar from "react-calendar"
@@ -78,6 +79,27 @@ function formatDate(value?: string | null) {
   const date = toDate(value)
   if (!date) return "-"
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
+function formatDateRange(start?: string | null, end?: string | null, stdDev?: number | null) {
+  if (!start) return "-"
+  const startDate = toDate(start)
+  if (!startDate) return "-"
+  
+  // If we have stdDev, use it to create a range (±3 days default if no stdDev)
+  const rangeDays = stdDev ? Math.max(3, Math.round(stdDev)) : 3
+  
+  if (end) {
+    return `${formatDate(start)} - ${formatDate(end)}`
+  }
+  
+  // Calculate range from stdDev or default
+  const endDate = new Date(startDate)
+  endDate.setDate(startDate.getDate() + rangeDays * 2)
+  const adjustedStart = new Date(startDate)
+  adjustedStart.setDate(startDate.getDate() - rangeDays)
+  
+  return `${formatDate(toLocalISOString(adjustedStart))} - ${formatDate(toLocalISOString(endDate))}`
 }
 
 function formatCycleDate(value?: string | null) {
@@ -393,6 +415,8 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
     }).sort((a, b) => a.log_date.localeCompare(b.log_date))
   }
 
+  const isPcosMode = userSetup?.has_pcos_or_irregular === true
+  
   const latestCycle = cycles.length > 0 ? cycles[0] : null
   const cycleDay = getCycleDay(latestCycle?.start_date)
   const phase = getPhaseInfo(cycleDay, prediction?.cycle_length_prediction)
@@ -477,11 +501,11 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
               )}
             </div>
             
-            {isUnusuallyLongCycle && (
-              <div className="mt-4 bg-[#fff4ea] border border-[#ffe0c2] text-[#9a5a08] p-3 rounded-xl text-sm flex items-start gap-2 animate-pulse">
-                <span className="text-lg">⚠️</span>
+            {isPcosMode && (
+              <div className="mt-4 bg-[#fff0f6] border border-[#f2d6e4] text-[#9a5a08] p-3 rounded-xl text-sm flex items-start gap-2">
+                <span className="text-lg">🏥</span>
                 <div>
-                  <strong>Long cycle detected:</strong> Your current cycle has lasted for {cycleDay} days. Did you forget to log your period?
+                  <strong>PCOS Mode:</strong> Predictions shown as date ranges to account for cycle variability. Focus on symptom tracking for better insights.
                 </div>
               </div>
             )}
@@ -517,6 +541,33 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
                   Log your period
                 </button>
               </div>
+            ) : isPcosMode ? (
+              <>
+                <div className="bg-[#fff0f6] rounded-2xl p-5 border border-[#f2d6e4]">
+                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>🏥</span> PCOS Mode Active
+                  </p>
+                  <p className="text-sm text-[#7d6b86] leading-relaxed">
+                    Tracking symptom patterns instead of cycle predictions. Focus on how you feel each day.
+                  </p>
+                </div>
+                <InfoCard 
+                  title="Next period expected" 
+                  value={formatDateRange(
+                    prediction?.predicted_next_start, 
+                    prediction?.predicted_next_end,
+                    prediction?.cycle_std_dev
+                  )} 
+                />
+                <InfoCard 
+                  title="Fertile window (approx)" 
+                  value={formatDateRange(
+                    prediction?.fertile_window_start,
+                    prediction?.fertile_window_end,
+                    prediction?.cycle_std_dev
+                  )} 
+                />
+              </>
             ) : (
               <>
                 <InfoCard title="Next period" value={formatDate(prediction?.predicted_next_start)} />
@@ -920,6 +971,9 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
           onClose={() => setDailyLogOpen(false)}
         />
       )}
+
+      {/* AI CHATBOT WIDGET */}
+      <ChatbotWidget />
     </div>
   )
 }

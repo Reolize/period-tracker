@@ -1,7 +1,7 @@
 # Period Tracker - Engineering Playbook / เอกสารสถาปัตยกรรมระบบ
 
 > **สำหรับ:** Thesis Defense / การส่งมอบโปรเจกต์  
-> **จัดทำโดย:** Senior DevOps Engineer  
+> **จัดทำโดย:** CPE STUDENTS  
 > **วันที่:** April 2026
 
 ---

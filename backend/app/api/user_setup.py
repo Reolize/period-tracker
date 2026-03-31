@@ -48,6 +48,8 @@ def upsert_user_setup(
             weight_kg=payload.weight_kg,
             pregnancy_due_date=payload.pregnancy_due_date,
             pregnancy_weeks_override=payload.pregnancy_weeks_override,
+            pronouns=payload.pronouns,
+            has_pcos_or_irregular=payload.has_pcos_or_irregular,
         )
         db.add(setup)
     else:
@@ -61,6 +63,8 @@ def upsert_user_setup(
         setup.weight_kg = payload.weight_kg
         setup.pregnancy_due_date = payload.pregnancy_due_date
         setup.pregnancy_weeks_override = payload.pregnancy_weeks_override
+        setup.pronouns = payload.pronouns
+        setup.has_pcos_or_irregular = payload.has_pcos_or_irregular
 
     db.commit()
     db.refresh(setup)
