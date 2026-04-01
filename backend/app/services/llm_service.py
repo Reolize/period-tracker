@@ -7,9 +7,8 @@ import os
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
-# Load environment variables from .env file
-from dotenv import load_dotenv
-load_dotenv()
+# Import secure configuration (NO dotenv here - config handles everything)
+from app.core.config import get_settings
 
 # Import Google Gemini SDK
 try:
@@ -61,21 +60,28 @@ Respond naturally to the user's message."""
 
     @classmethod
     def _configure_gemini(cls):
-        """Configure Gemini API if not already configured"""
+        """Configure Gemini API if not already configured using secure settings."""
         if cls._gemini_configured or not GEMINI_AVAILABLE:
             return
         
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Get API key from secure config (NOT from os.getenv directly)
+        try:
+            settings = get_settings()
+            api_key = settings.gemini_api_key  # Returns None if not set (safe fallback)
+        except Exception as e:
+            print(f"⚠️ Failed to load settings: {e}")
+            api_key = None
+        
         if api_key:
             try:
                 genai.configure(api_key=api_key)
                 cls._gemini_configured = True
-                print("✅ Gemini API configured successfully")
+                print("✅ Gemini API configured successfully (via secure config)")
             except Exception as e:
                 print(f"⚠️ Failed to configure Gemini API: {e}")
                 cls._gemini_configured = False
         else:
-            print("⚠️ GEMINI_API_KEY not found in environment variables")
+            print("⚠️ GEMINI_API_KEY not found in secure config (.env file)")
             cls._gemini_configured = False
 
     @classmethod
