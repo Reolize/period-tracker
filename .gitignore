@@ -1,62 +1,523 @@
-# -----------------
-# Node / Next.js
-# -----------------
+# =============================================================================
+# BULLETPROOF .GITIGNORE - PERIOD TRACKER PROJECT
+# Tech Stack: FastAPI (Python) + Next.js (Node.js) + Docker + PostgreSQL + ML
+# Purpose: Prevent secret leaks and exclude build artifacts
+# =============================================================================
+
+# =============================================================================
+# SECTION 1: SECRETS & ENVIRONMENT VARIABLES (CRITICAL - NEVER COMMIT THESE)
+# =============================================================================
+
+# All .env files - covers all variants
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.testing
+.env.staging
+.env.production
+.env.prod
+.envrc
+.env.secret
+.env.private
+
+# Environment backup files
+.env.bak
+.env.backup
+.env.old
+.env.save
+.env.save.*
+.env~  # Vim backup
+*.env~  # Vim swap
+
+# Private key files
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
+*.priv
+*.private
+
+# SSH keys
+.ssh/
+*.pub
+id_rsa
+id_ecdsa
+id_ed25519
+id_dsa
+
+# Credential files
+credentials.json
+*service-account*.json
+google-credentials.json
+gcp-key.json
+aws-credentials
+.aws/
+.boto
+
+# Secrets directories
+secrets/
+private/
+
+# =============================================================================
+# SECTION 2: PYTHON / FASTAPI ARTIFACTS
+# =============================================================================
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.pyo
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+pytestdebug.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+.pdm-python
+.pdm-build/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Virtual environments
+venv/
+venv_*/
+ENV/
+env/
+env_*/
+.venv
+.venv_*/
+.virtualenv/
+virtualenv/
+
+# Spyder project
+.spyderproject
+.spyproject
+
+# Rope project
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# FastAPI specific
+uploads/
+media/
+staticfiles/
+
+# =============================================================================
+# SECTION 3: NODE.JS / NEXT.JS ARTIFACTS
+# =============================================================================
+
+# Dependencies
 node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Production build
 .next/
 out/
 build/
 dist/
 
-# logs
+# Vercel
+.vercel
+
+# Next.js specific
+*.tsbuildinfo
+next-env.d.ts
+
+# Testing
+/coverage
+.nyc_output/
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-*.log
+.pnpm-debug.log*
+lerna-debug.log*
 
-# coverage
-coverage/
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# env
-.env*
-!.env.example
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# -----------------
-# Python
-# -----------------
-venv/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Optional npm cache directory
+.npm
 
-# -----------------
-# ML data & artifacts (DO NOT COMMIT)
-# -----------------
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Parcel
+.parcel-cache
+
+# Gatsby
+.cache/
+public
+
+# Vuepress
+.vuepress/dist
+
+# Docusaurus
+.docusaurus
+
+# Serverless
+.serverless
+
+# FuseBox
+.fusebox/
+
+# DynamoDB Local
+.dynamodb/
+
+# TernJS
+.tern-port
+
+# Stores VSCode versions
+.vscode-test
+
+# =============================================================================
+# SECTION 4: DOCKER ARTIFACTS
+# =============================================================================
+
+# Docker environment files
+docker.env
+docker-compose.override.yml
+docker-compose.*.yml
+!docker-compose.yml
+!docker-compose-new.yml
+
+# Docker volumes
+docker-volumes/
+volumes/
+data/
+
+# Docker secrets
+docker-secrets/
+secrets*.yml
+secrets*.yaml
+
+# =============================================================================
+# SECTION 5: ML / DATA ARTIFACTS
+# =============================================================================
+
+# ML model files (large binaries)
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.joblib
+*.pb
+*.onnx
+*.tflite
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# ML training artifacts
+mlruns/
+mlflow/
+lightning_logs/
+wandb/
+runs/
+logs/
+tensorboard/
+checkpoints/
+
+# Datasets (large files)
 ml/data/*.csv
 ml/data/raw/
 ml/data/processed/
-ml/saved_models/
+ml/data/**/raw_data/
+ml/data/**/train.csv
+ml/data/**/test.csv
+ml/data/**/val.csv
 
-# Allow small, sanitized samples if you want
+# Saved models
+ml/saved_models/
+models/
+model_weights/
+
+# Keep sample data for examples
 !ml/data/**/sample_*.csv
 !ml/data/**/.gitkeep
+!ml/data/**/README.md
 
-# -----------------
-# OS
-# -----------------
-.DS_Store
-Thumbs.db
+# =============================================================================
+# SECTION 6: DATABASE ARTIFACTS
+# =============================================================================
 
-# -----------------
-# IDE
-# -----------------
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+
+# PostgreSQL dumps
+*.pgdump
+*.backup
+
+# MongoDB
+*.mongodb
+
+# Redis
+dump.rdb
+*.rdb
+
+# =============================================================================
+# SECTION 7: IDE / EDITOR ARTIFACTS
+# =============================================================================
+
+# VS Code
 .vscode/
+*.code-workspace
+.vscode-test/
+
+# JetBrains (PyCharm, WebStorm, etc)
 .idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+out/
 
-# -----------------
-# misc
-# -----------------
-*.pem
+# Eclipse
+.metadata
+.classpath
+.project
+.settings/
 
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Vim/Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+*.spl
+
+# Emacs
+*~
+.#*
+\#*\#
+
+# Notepad++
+*.bak
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+
+# =============================================================================
+# SECTION 8: OPERATING SYSTEM ARTIFACTS
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+*.icloud
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.nfs*
+.directory
+.Trash-*
+
+# =============================================================================
+# SECTION 9: LOGS & TEMPORARY FILES
+# =============================================================================
+
+# Logs
+logs/
+*.log
+*.log.*
+log.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+tmp.*
+*.tmp
+*.temp
+*.tempfile
+*.scratch
+
+# Cache
+cache/
+.cached/
+*.cache
+
+# =============================================================================
+# SECTION 10: EXPLICITLY ALLOWED FILES (DO NOT IGNORE)
+# =============================================================================
+
+# Environment templates (safe to commit)
+!.env.example
+!.env.template
+!.env.sample
+!.env.defaults
+
+# GitHub Actions (safe)
+!.github/
+
+# Documentation (safe)
+!README.md
+!CONTRIBUTING.md
+!LICENSE
+!CHANGELOG.md
+!ARCHITECTURE.md
+
+# Config files (safe)
+!.gitignore
+!.dockerignore
+!.editorconfig
+!.prettierrc
+!.eslintrc*
+!.pre-commit-config.yaml
+
+# Keep directories with .gitkeep
+!.gitkeep
+
+# =============================================================================
+# END OF BULLETPROOF .GITIGNORE
+# =============================================================================
