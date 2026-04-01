@@ -27,7 +27,11 @@ export async function apiFetch(
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({ detail: "API error" }))
-      throw new Error(error.detail || "API error")
+      // Handle FastAPI validation errors where detail is an array/object
+      const errorMessage = typeof error.detail === 'object' 
+        ? JSON.stringify(error.detail) 
+        : (error.detail || "API error")
+      throw new Error(errorMessage)
     }
 
     return await res.json()

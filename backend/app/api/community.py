@@ -400,7 +400,10 @@ def create_post(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new community post. Can be posted anonymously. Content is moderated by AI."""
-    print(f"📝 [create_post] User {current_user.id} creating post: title='{payload.title[:50]}...', category={payload.category}, anonymous={payload.is_anonymous}")
+    # If user has anonymous mode enabled in their profile, force anonymous posts
+    is_anonymous = payload.is_anonymous or current_user.is_anonymous_mode
+    
+    print(f"📝 [create_post] User {current_user.id} creating post: title='{payload.title[:50]}...', category={payload.category}, anonymous={is_anonymous}")
     
     # Combine title and content for moderation
     content_to_moderate = f"{payload.title}\n\n{payload.content}"
@@ -422,7 +425,7 @@ def create_post(
         title=payload.title,
         content=payload.content,
         category=payload.category,
-        is_anonymous=payload.is_anonymous,
+        is_anonymous=is_anonymous,
     )
     db.add(post)
     db.commit()
@@ -431,7 +434,7 @@ def create_post(
     
     author = build_author_info(
         current_user,
-        post.is_anonymous,
+        is_anonymous,
         post.id,
         current_user.id
     )
@@ -526,11 +529,14 @@ def add_comment(
             detail="เนื้อหาขัดต่อมาตรฐานชุมชน (Inappropriate content detected by AI)"
         )
     
+    # If user has anonymous mode enabled in their profile, force anonymous comments
+    is_anonymous = payload.is_anonymous or current_user.is_anonymous_mode
+    
     comment = Comment(
         post_id=post_id,
         user_id=current_user.id,
         content=payload.content,
-        is_anonymous=payload.is_anonymous,
+        is_anonymous=is_anonymous,
         parent_id=payload.parent_id,
     )
     db.add(comment)

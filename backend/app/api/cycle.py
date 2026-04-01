@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.api.deps import get_db
 from app.api.auth_deps import get_current_user
 from app.models.cycle import Cycle
+from app.models.user_setup import UserSetup
 from app.schemas.cycle_schema import PredictionResponse, HealthAlert as HealthAlertSchema, AIInsightsResponse
 from app.services.prediction_engine import PredictionEngine
 from app.services.health_utils import assess_cycle_health
@@ -26,7 +27,18 @@ def predict_cycle(
         Cycle.user_id == current_user.id
     ).order_by(Cycle.start_date.asc()).all()
 
-    result = PredictionEngine.predict(db, current_user.id, cycles)
+    # Get user's setup for prediction mode preferences
+    setup = db.query(UserSetup).filter(UserSetup.user_id == current_user.id).first()
+    prediction_mode = setup.prediction_mode if setup else "smart"
+    manual_cycle_length = setup.manual_cycle_length if setup else 28
+
+    result = PredictionEngine.predict(
+        db, 
+        current_user.id, 
+        cycles,
+        prediction_mode=prediction_mode,
+        manual_cycle_length=manual_cycle_length
+    )
 
     if not result:
         raise HTTPException(
@@ -58,8 +70,19 @@ def get_ai_insights(
         Cycle.user_id == current_user.id
     ).order_by(Cycle.start_date.asc()).all()
 
+    # Get user's setup for prediction mode preferences
+    setup = db.query(UserSetup).filter(UserSetup.user_id == current_user.id).first()
+    prediction_mode = setup.prediction_mode if setup else "smart"
+    manual_cycle_length = setup.manual_cycle_length if setup else 28
+
     # Get prediction data to calculate cycle metrics
-    prediction_result = PredictionEngine.predict(db, current_user.id, cycles)
+    prediction_result = PredictionEngine.predict(
+        db, 
+        current_user.id, 
+        cycles,
+        prediction_mode=prediction_mode,
+        manual_cycle_length=manual_cycle_length
+    )
 
     # Generate AI insights
     insights = AIInsightsService.generate_insights(

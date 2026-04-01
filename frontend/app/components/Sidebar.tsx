@@ -10,7 +10,6 @@ import {
   Settings, 
   Droplet, 
   Bell, 
-  ShieldCheck, 
   X,
   BarChart3,
   Users,
@@ -52,7 +51,6 @@ export default function Sidebar({ onMobileClose }: SidebarProps) {
     { name: "Community", path: "/community", icon: MessageCircle },
     { name: "Health Library", path: "/health-library", icon: BookOpen },
     { name: "Notifications", path: "/notifications", icon: Bell },
-    { name: "Data Privacy", path: "/data-privacy", icon: ShieldCheck },
     { name: "Settings", path: "/account", icon: Settings },
   ]
 

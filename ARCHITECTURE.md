@@ -1,20 +1,729 @@
-# Period Tracker - Engineering Playbook / เอกสารสถาปัตยกรรมระบบ
-
-> **สำหรับ:** Thesis Defense / การส่งมอบโปรเจกต์  
-> **จัดทำโดย:** CPE STUDENTS  
-> **วันที่:** April 2026
+# Period Tracker - Engineering Playbook
+> **Student Engineering Handover Documentation**
+> 
+> **Created By:** CPE STUDENTS  
+> **Last Updated:** April 2026
 
 ---
 
 ## 1. Project Overview & Tech Stack
 
-### 1.1 ภาพรวมโปรเจกต์
+### 1.1 Project Overview
 
-**Period Tracker with Personalized AI** เป็นแอปพลิเคชันติดตามรอบเดือน (Menstrual Cycle Tracking) ที่มีระบบ AI ส่วนบุคคลสำหรับทำนายรอบเดือน อาการที่คาดว่าจะเกิด และให้คำแนะนำเฉพาะบุคคล ระบบถูกออกแบบมาเพื่อแก้ปัญหา **Cold Start Problem** ที่ผู้ใช้ใหม่ยังไม่มีข้อมูลมากพอสำหรับการทำนายที่แม่นยำ
+**Period Tracker with Personalized AI** is a menstrual cycle tracking application featuring an AI-powered prediction engine that addresses the **Cold Start Problem** (new users with limited historical data). The system combines statistical methods with machine learning to provide accurate predictions across all user data availability levels.
 
-### 1.2 Tech Stack ที่ใช้
+### 1.2 Tech Stack
 
-| Layer | Technology | เหตุผลในการเลือกใช้ |
+| Layer | Technology | Rationale |
+|-------|------------|-----------|
+| **Frontend** | Next.js 16 + React 19 + TypeScript | Server-side rendering for SEO, App Router for modern routing, TypeScript for type safety |
+| **Styling** | Tailwind CSS 4 | Utility-first CSS framework with consistent design system |
+| **Backend** | FastAPI + Python 3.11 | High-performance ASGI framework, automatic OpenAPI docs, native async support |
+| **Database** | PostgreSQL 16 | ACID compliance, JSONB for flexible schema, production-ready |
+| **ORM** | SQLAlchemy 2.0 | Declarative models, migration support, connection pooling |
+| **Authentication** | JWT (python-jose) + bcrypt | Stateless authentication, secure password hashing |
+| **AI/ML** | Scikit-learn (HistGradientBoostingRegressor) | Native NaN support, resistant to overfitting with small data |
+| **Chatbot** | Google Gemini API | Context-aware AI assistant for menstrual health queries |
+| **Container** | Docker + Docker Compose | One-command deployment, consistent dev/prod environments |
+
+### 1.3 Key Features
+
+1. **Hybrid Prediction Engine** - 3-tier automated intelligence:
+   - **Global ML Model** (HistGradientBoosting): Cold start users (0-3 cycles)
+   - **Bayesian Shrinkage**: Sparse data users (4-5 cycles)
+   - **Weighted Moving Average**: Rich data users (6+ cycles)
+
+2. **Dynamic Configuration** - Admin-adjustable AI parameters via database (no redeploy needed)
+
+3. **Personalized AI Insights**:
+   - Symptom probability prediction
+   - Dynamic luteal phase calculation
+   - Smart recommendations based on cycle patterns
+
+4. **Community Features** - Anonymous health discussions with AI content moderation
+
+5. **AI Health Chatbot** - Context-aware assistant with menstrual health knowledge
+
+---
+
+## 2. Mathematical Formulas & Methodology
+
+### 2.1 Weighted Moving Average (WMA) for Cycle Prediction
+
+Used for users with 6+ cycles of historical data. Recent cycles receive higher weights.
+
+```
+WMA = Σ(v_i × w_i) / Σ(w_i)
+
+Where:
+- v_i = cycle length at position i (chronological order)
+- w_i = weight at position i = i (linear weighting: 1, 2, 3, ..., n)
+- n = number of cycles in window (max 6)
+```
+
+**Outlier Removal (performed before WMA):**
+```
+For each value v:
+    z = (v - μ) / σ
+    Keep v if |z| ≤ 2
+
+Where:
+- μ = arithmetic mean of values
+- σ = standard deviation of values
+```
+
+**Rationale**: WMA adapts to recent trends better than simple moving average. Outlier removal prevents anomalous cycles (sickness, stress) from distorting predictions.
+
+### 2.2 Bayesian Shrinkage for Sparse Data
+
+Used for users with 4-5 cycles. Blends user data with global population priors.
+
+```
+Posterior Mean = (n × UserMean + k × GlobalPrior) / (n + k)
+
+Where:
+- n = number of user cycles
+- k = prior strength (pseudo-observations) = 3
+- UserMean = user's average cycle length
+- GlobalPrior = mean from population data (~28 days)
+```
+
+**Shrinkage Factor:**
+```
+Shrinkage = k / (n + k)
+```
+
+| Cycles | Shrinkage | Interpretation |
+|--------|-----------|----------------|
+| 4 | 3/7 = 43% | Heavy weight on global prior |
+| 5 | 3/8 = 38% | Moderate shrinkage |
+| 6 | 3/9 = 33% | Light shrinkage (WMA preferred) |
+
+**Rationale**: Empirical Bayes prevents overfitting with limited data. As user data grows, the estimate shifts toward personal history.
+
+### 2.3 Confidence Score Calculation
+
+```
+Confidence = [(1 - σ/μ) × 0.7 + min(1, n/6) × 0.3] × 100
+
+Where:
+- σ = standard deviation of cycle lengths
+- μ = mean cycle length
+- n = number of cycles (capped at 6)
+- 0.7 = weight for regularity component
+- 0.3 = weight for data volume component
+```
+
+**Confidence by Tier:**
+| Tier | Algorithm | Typical Confidence |
+|------|-----------|-------------------|
+| 1 | Global ML | ~50% |
+| 2 | Bayesian | ~65% |
+| 3 | WMA | 70-95% |
+| Fixed | User-defined | 95% |
+
+**Rationale**: Combines regularity (inverse of CV) and data volume for a calibrated confidence metric.
+
+### 2.4 Standard Deviation for Cycle Regularity
+
+```
+σ = √[Σ(x_i - μ)² / (n - 1)]
+
+Where:
+- x_i = individual cycle length
+- μ = mean cycle length
+- n = number of cycles
+```
+
+**Regularity Classification:**
+```
+If σ ≤ strict_sd (2.0):      → "very_regular"
+If σ ≤ moderate_sd (4.0):  → "moderate_variation"
+Else:                       → "high_variation"
+```
+
+**Rationale**: Standard deviation is the appropriate measure for cycle variability (variance in days²).
+
+### 2.5 Dynamic Luteal Phase Calculation
+
+```
+CycleDeviation = μ - 28
+
+If σ ≤ strict_sd:
+    Adjustment = round(CycleDeviation × 0.3)
+    Method = "learned_from_regular_cycles"
+    
+ElseIf σ ≤ moderate_sd:
+    Adjustment = round(CycleDeviation × 0.15)
+    Method = "learned_from_moderate_variation"
+    
+Else:
+    Adjustment = 0
+    Method = "standard_fallback_high_variation"
+
+LearnedPhase = clamp(BasePhase + Adjustment, 10, 18)
+```
+
+**Rationale**: Longer cycles typically have longer follicular phases, not luteal phases. The adjustment factors (0.3, 0.15) are conservative estimates based on reproductive biology literature.
+
+### 2.6 Symptom Probability with Weighted Blending
+
+**Base Probability Scaling:**
+```
+BaseProb(s) = min(95, base_setting × scale_factor[s])
+
+Where:
+- base_setting = ai_symptom_base_prob (default: 30)
+- scale_factor = {Cramps: 2.17, Acne: 1.33, Mood: 1.67, Bloating: 1.83, Fatigue: 2.0}
+```
+
+**Blended Probability (with user data):**
+```
+weight = min(0.8, cycles_with_data / 6)
+BlendedProb = round(UserProb × weight + BaseProb × (1 - weight))
+FinalProb = clamp(BlendedProb, 5, 95)
+```
+
+**Rationale**: More user data = more weight on personal history. Caps prevent 0% or 100% predictions (biological uncertainty).
+
+### 2.7 Ovulation and Fertility Window Prediction
+
+```
+PredictedOvulation = LastPeriodStart + (CycleLength - LutealPhase)
+
+FertilityWindowStart = PredictedOvulation - (5 + spread)
+FertilityWindowEnd = PredictedOvulation + (1 + spread)
+
+Where:
+- spread = min(2, floor(cycle_std_dev))
+- LutealPhase = from dynamic calculation (default 14)
+```
+
+**Rationale**: Fertility window spans 5 days before ovulation (sperm survival) + ovulation day + 1 day after. Spread increases with cycle variability.
+
+---
+
+## 3. System Architecture
+
+### 3.1 High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              CLIENT LAYER                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    Next.js Frontend (Port 3000)                    │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐ │   │
+│  │  │   React 19   │  │ Tailwind CSS │  │   React Calendar/Charts  │ │   │
+│  │  │   Components │  │   Styling    │  │   (recharts, calendar)   │ │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                              HTTP / REST                                    │
+│                                    │                                        │
+│                              API LAYER                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                  FastAPI Backend (Port 8000)                       │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────┐ │   │
+│  │  │ Auth API     │  │ Cycle API    │  │ AI Insights  │  │ Admin   │ │   │
+│  │  │ /auth        │  │ /cycles      │  │ /cycles/     │  │ /admin  │ │   │
+│  │  └──────────────┘  └──────────────┘  │ insights     │  │         │ │   │
+│  │  ┌──────────────┐  ┌──────────────┐  └──────────────┘  └─────────┘ │   │
+│  │  │ Daily Log    │  │ Notification │  ┌──────────────┐  ┌─────────┐ │   │
+│  │  │ /daily-logs  │  │ /notifications│  │ Prediction │  │ Chat    │ │   │
+│  │  └──────────────┘  └──────────────┘  │ /predict   │  │ /chat   │ │   │
+│  │                                       └──────────────┘  └─────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                              SQLAlchemy ORM                                 │
+│                                    │                                        │
+│                           DATA PERSISTENCE                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    PostgreSQL Database (Port 5432)                 │   │
+│  │                                                                     │   │
+│  │   Tables: users, cycles, daily_logs, notifications,               │   │
+│  │           system_settings, user_setups, communities               │   │
+│  │                                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│                              ML LAYER                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                   ML Model (HistGradientBoosting)                  │   │
+│  │                                                                     │   │
+│  │   File: ml/base_model/train.py                                    │   │
+│  │   Model: Global Prior for Cold Start Users                        │   │
+│  │                                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│                           EXTERNAL SERVICES                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                   Google Gemini API                                │   │
+│  │                   (AI Chatbot & Content Moderation)                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.2 Project Structure
+
+```
+period-tracker/
+│
+├── README.md                      # Quick start and user guide
+├── ARCHITECTURE.md               # This document - engineering playbook
+├── docker-compose.yml            # Full stack orchestration
+├── docker-compose-new.yml        # Alternative Docker configuration
+├── .env.example                  # Environment template
+├── requirements.txt              # Python dependencies
+│
+├── frontend/                      # Next.js 16 Application
+│   ├── app/
+│   │   ├── (app)/                 # Group routes (App Router)
+│   │   │   ├── account/           # User account management
+│   │   │   ├── add-cycle/         # Quick add cycle page
+│   │   │   ├── admin/             # Admin Dashboard
+│   │   │   │   ├── page.tsx       # Admin overview
+│   │   │   │   ├── settings/      # System settings UI
+│   │   │   │   └── users/         # User management
+│   │   │   ├── community/         # Community features
+│   │   │   ├── dashboard/         # User dashboard
+│   │   │   ├── daily-log/         # Daily symptom tracking
+│   │   │   ├── data-privacy/      # Privacy settings
+│   │   │   ├── health-library/    # Health education
+│   │   │   ├── notifications/     # Notification center
+│   │   │   └── trends/            # Insights & Trends
+│   │   │
+│   │   ├── (public)/              # Public routes (login, register)
+│   │   ├── components/            # Shared React components
+│   │   │   ├── AIPredictionReport.tsx    # AI insights display
+│   │   │   ├── CycleCalendar.tsx         # Calendar component
+│   │   │   ├── CycleChart.tsx            # Charts visualization
+│   │   │   ├── CycleDashboard.tsx        # Main dashboard
+│   │   │   ├── DailyLogModal.tsx         # Daily log editor
+│   │   │   ├── PredictionTimeline.tsx    # Prediction visualization
+│   │   │   ├── Sidebar.tsx               # Navigation
+│   │   │   └── ui/                       # Reusable UI components
+│   │   │
+│   │   ├── lib/
+│   │   │   └── api.ts             # API client utilities
+│   │   ├── types/
+│   │   │   └── index.ts           # TypeScript type definitions
+│   │   ├── globals.css            # Global styles + Tailwind
+│   │   ├── layout.tsx             # Root layout
+│   │   └── page.tsx               # Landing page
+│   │
+│   ├── package.json               # Frontend dependencies
+│   ├── Dockerfile                 # Frontend container
+│   └── .env.example               # Frontend env template
+│
+├── backend/                       # FastAPI Application
+│   ├── app/
+│   │   ├── api/                   # API Routes (Controllers)
+│   │   │   ├── auth.py            # Authentication endpoints
+│   │   │   ├── auth_deps.py       # JWT dependency injection
+│   │   │   ├── admin.py           # Admin settings API
+│   │   │   ├── chat.py            # AI chatbot endpoints
+│   │   │   ├── community.py       # Community posts/comments
+│   │   │   ├── cycle.py           # Cycle CRUD + AI insights
+│   │   │   ├── daily_log.py       # Daily log management
+│   │   │   ├── deps.py            # Database dependency
+│   │   │   ├── notification.py    # Notification system
+│   │   │   ├── prediction.py      # Prediction endpoints
+│   │   │   ├── user_setup.py      # User setup/profile API
+│   │   │   └── ...
+│   │   │
+│   │   ├── core/                  # Core infrastructure
+│   │   │   ├── database.py        # SQLAlchemy engine & session
+│   │   │   ├── security.py        # Password hashing & JWT
+│   │   │   └── config.py          # Configuration management
+│   │   │
+│   │   ├── models/                # Database Models (SQLAlchemy)
+│   │   │   ├── user.py            # User model
+│   │   │   ├── user_setup.py      # User profile & onboarding
+│   │   │   ├── cycle.py           # Menstrual cycle model
+│   │   │   ├── daily_log.py       # Daily symptom log
+│   │   │   ├── notification.py    # Notification model
+│   │   │   ├── system_setting.py  # Dynamic configuration
+│   │   │   └── community.py       # Community posts/comments
+│   │   │
+│   │   ├── schemas/               # Pydantic Schemas (DTOs)
+│   │   │   ├── cycle_schema.py
+│   │   │   ├── daily_log_schema.py
+│   │   │   ├── notification_schema.py
+│   │   │   ├── prediction_schema.py
+│   │   │   ├── user_schema.py
+│   │   │   └── user_setup_schema.py
+│   │   │
+│   │   ├── services/              # Business Logic Layer
+│   │   │   ├── ai_insights_service.py      # AI insights engine
+│   │   │   ├── cycle_service.py            # Cycle utilities
+│   │   │   ├── global_priors.py            # Global statistics
+│   │   │   ├── health_utils.py             # Health calculations
+│   │   │   ├── llm_service.py              # Gemini chatbot
+│   │   │   ├── prediction_engine.py        # Hybrid prediction
+│   │   │   ├── prediction_service.py       # Prediction facade
+│   │   │   ├── symptom_pattern_service.py  # Symptom analysis
+│   │   │   └── user_service.py             # User utilities
+│   │   │
+│   │   └── main.py                # FastAPI app factory
+│   │
+│   ├── tests/                     # Test suite
+│   ├── scripts/                   # Utility scripts
+│   │   ├── seed.py               # Database seeding
+│   │   └── reset_db.py           # Database reset
+│   │
+│   ├── requirements.txt           # Python dependencies
+│   ├── Dockerfile                 # Backend container
+│   ├── init_settings.py           # Initialize system settings
+│   └── create_admin.py            # Create admin user
+│
+├── ml/                            # Machine Learning Module
+│   ├── base_model/
+│   │   ├── train.py               # Training pipeline
+│   │   ├── features.py            # Feature engineering
+│   │   └── predict.py             # Inference module
+│   │
+│   ├── personalization/
+│   │   ├── fine_tune.py           # Model fine-tuning (future)
+│   │   └── hybrid_strategy.py     # Hybrid prediction logic
+│   │
+│   ├── data_prep/
+│   │   └── build_canonical_cycles.py  # Data preprocessing
+│   │
+│   ├── data/                      # Training datasets (CSV files)
+│   └── saved_models/              # Trained model artifacts
+│       └── global/
+│           ├── priors.json        # Global statistics
+│           ├── cycle_model.pkl    # Cycle length model
+│           └── period_model.pkl   # Period length model
+│
+└── infra/                         # Infrastructure configs
+    ├── backend.Dockerfile
+    ├── frontend.Dockerfile
+    └── nginx.conf
+```
+
+---
+
+## 4. Core Modules Deep Dive
+
+### 4.1 Authentication System
+
+**Architecture Pattern:** JWT (JSON Web Token) with Stateless Authentication
+
+| Component | File Path | Key Functions |
+|-----------|-----------|---------------|
+| **Password Hashing** | `backend/app/core/security.py` | `hash_password()`, `verify_password()` using bcrypt |
+| **JWT Token** | `backend/app/core/security.py` | `create_access_token()`, `decode_access_token()` |
+| **Auth API** | `backend/app/api/auth.py` | `register()`, `login()` |
+| **JWT Dependency** | `backend/app/api/auth_deps.py` | `get_current_user()`, `get_current_admin_user()` |
+
+**Security Details:**
+- **Password Hashing:** Direct bcrypt (bypasses passlib bugs)
+- **JWT Algorithm:** HS256
+- **Token Expiry:** 60 minutes
+- **Secret Key:** Environment variable `SECRET_KEY`
+
+### 4.2 Hybrid Prediction Engine
+
+**Location:** `backend/app/services/prediction_engine.py`
+
+**3 User-Selectable Modes:**
+
+| Mode | Value | Algorithm | Best For |
+|------|-------|-----------|----------|
+| **Smart AI Hybrid** | `"smart"` | Auto 3-tier selection | Most users |
+| **Regular Calendar** | `"strict"` | Pure WMA with outlier filtering | Irregular cycles |
+| **Fixed Number** | `"fixed"` | Manual cycle length | PCOS/irregular |
+
+**Smart AI 3-Tier Pipeline:**
+
+```
+User Cycles    │   Algorithm              │   Confidence
+───────────────┼──────────────────────────┼────────────────────
+0-3 cycles     │   Global ML Model        │   "Global ML Model"
+(Cold Start)   │   (HistGradientBoosting) │   Confidence: ~50%
+               │                          │
+4-5 cycles     │   Bayesian Shrinkage     │   "Bayesian Hybrid"
+(Sparse Data)  │   + Global Priors        │   Confidence: ~65%
+               │                          │
+6+ cycles      │   Weighted Moving Avg    │   "Weighted Personal"
+(Rich Data)    │   + Light smoothing      │   Confidence: 70-90%
+```
+
+### 4.3 Dynamic Configuration System
+
+**Location:** `backend/app/models/system_setting.py`, `backend/app/api/admin.py`
+
+**Key AI Configuration Settings:**
+
+| Setting Key | Default | Description |
+|-------------|---------|-------------|
+| `ai_regularity_strict_sd` | 2.0 | SD threshold for "Very Regular" cycles |
+| `ai_regularity_moderate_sd` | 4.0 | SD threshold for "Moderate Variation" |
+| `ai_symptom_base_prob` | 30 | Base probability % for symptom predictions |
+| `ovulation_offset_days` | 14 | Standard luteal phase length |
+
+**Rationale:** Database-driven configuration allows:
+- Admin adjustment without redeployment
+- A/B testing different thresholds
+- Gradual parameter tuning based on user feedback
+
+### 4.4 AI Chatbot (Gemini Integration)
+
+**Location:** `backend/app/services/llm_service.py`
+
+**Features:**
+- Context-aware responses (user's cycle data, symptoms)
+- Automatic model discovery (prefers Gemini 1.5 Flash)
+- Content moderation for community posts
+- Fallback to rule-based responses when API unavailable
+
+**Context Variables:**
+- Current cycle day
+- Predicted next period
+- Recent symptoms
+- Cycle regularity
+
+### 4.5 Symptom Pattern Analysis
+
+**Location:** `backend/app/services/symptom_pattern_service.py`
+
+**Logic:**
+1. Aggregate daily logs across recent cycles (6-cycle window)
+2. Map symptoms to cycle phases (Period, Follicular, Ovulation, Luteal)
+3. Calculate frequency by phase
+4. Return top 4 most frequent symptoms
+
+---
+
+## 5. Methodology Rationale
+
+### 5.1 Why Weighted Moving Average (WMA)?
+
+**Alternative Considered:** Simple Moving Average (SMA)
+
+**WMA Advantages:**
+- Adapts to recent lifestyle changes (stress, diet, exercise)
+- Recent cycles more predictive than older ones
+- Linear weights (1, 2, 3, ..., n) provide smooth transition
+
+**Formula Choice:**
+- Linear weights vs exponential: More interpretable, easier to debug
+- Window size 6: Balances responsiveness with stability (~6 months of data)
+
+### 5.2 Why Bayesian Shrinkage?
+
+**Problem:** With 4-5 cycles, sample variance is unreliable (high estimation error).
+
+**Solution:** Empirical Bayes blends user mean with population mean.
+
+**Prior Strength (k=3):**
+- 3 pseudo-observations = ~20-43% weight on global prior
+- Derived from cross-validation on population data
+- Balances personalization with statistical stability
+
+### 5.3 Why 3-Tier Architecture?
+
+**Alternative Considered:** Single LSTM/Neural Network
+
+**Why Not Deep Learning:**
+
+| Criteria | Hybrid Approach | LSTM/Deep Learning |
+|----------|-----------------|-------------------|
+| Cold Start | ✅ Supported | ❌ Not supported |
+| Small Data | ✅ Robust | ❌ Overfits easily |
+| Interpretability | ✅ High (statistics-based) | ❌ Black box |
+| Training Cost | ✅ CPU only | ❌ GPU required |
+| Inference Speed | ✅ Milliseconds | ⚠️ Slower |
+
+**Tier Boundaries (0-3, 4-5, 6+):**
+- 3 cycles: Minimum for meaningful variance calculation
+- 5 cycles: Point where WMA outperforms shrinkage
+- 6 cycles: Rich data threshold (full personalization)
+
+### 5.4 Why HistGradientBoosting for Global Model?
+
+**Advantages:**
+- Native NaN support (handles missing user data gracefully)
+- Resistant to overfitting (ensemble method)
+- Fast inference (milliseconds on CPU)
+- Feature importance (explainable predictions)
+
+**Feature Engineering:**
+- Age, BMI (demographics)
+- Stress Level, Sleep Hours (lifestyle)
+- Exercise Frequency, Diet (behavioral)
+
+### 5.5 Why Dynamic Luteal Phase?
+
+**Biological Fact:** Luteal phase is relatively stable (10-18 days) compared to follicular phase.
+
+**Algorithm Logic:**
+- Regular cycles (low σ): Can "learn" personal luteal phase
+- Irregular cycles (high σ): Stick to standard 14 days (more reliable)
+- Conservative adjustments (0.3, 0.15 factors): Avoid overfitting
+
+---
+
+## 6. Future Roadmap
+
+### 6.1 Planned Features (Not Yet Implemented)
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| **Email Notifications** | ⚠️ Partial | High |
+| **Mobile App (React Native/Expo)** | ❌ Not Started | Medium |
+| **Advanced ML Personalization** | ⚠️ Scaffolding Only | Medium |
+| **FHIR Integration (Health Records)** | ❌ Not Started | Low |
+| **Wearable Device Sync** | ❌ Not Started | Low |
+| **Multilingual Support** | ⚠️ Partial (Thai/English mix) | Medium |
+
+### 6.2 Email Notifications Status
+
+**Current State:**
+- Database schema supports email notifications
+- Notification preferences stored in DB
+- SMTP configuration not implemented
+- Only in-app notifications are functional
+
+**Files to Modify:**
+- `backend/app/services/email_service.py` (create)
+- `backend/app/api/notification.py` (add email trigger)
+- `.env` (add SMTP credentials)
+
+### 6.3 Advanced ML Personalization Status
+
+**Current State:**
+- Fine-tuning scaffold exists (`ml/personalization/fine_tune.py`)
+- User-specific models not trained automatically
+- Global model used for all cold-start users
+
+**Future Enhancement:**
+- Periodic retraining with user's growing dataset
+- Online learning for real-time adaptation
+- Transfer learning from global model
+
+---
+
+## 7. Deployment & Operations
+
+### 7.1 Quick Start (Docker)
+
+```bash
+# 1. Clone and configure
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+
+# 2. Start services
+docker-compose up -d
+
+# 3. Initialize system
+docker-compose exec backend python init_settings.py
+docker-compose exec backend python create_admin.py
+```
+
+### 7.2 Environment Variables
+
+**Backend (.env):**
+```env
+DATABASE_URL=postgresql://postgres:password@db:5432/period_tracker
+SECRET_KEY=your-super-secret-key
+GEMINI_API_KEY=your-gemini-api-key  # Optional, for chatbot
+```
+
+**Frontend (.env.local):**
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+### 7.3 Database Migrations
+
+Using Alembic for schema migrations:
+
+```bash
+cd backend
+
+# Create migration
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback
+alembic downgrade -1
+```
+
+---
+
+## 8. API Documentation
+
+When running, API documentation is available at:
+
+- **Swagger UI:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+- **OpenAPI Schema:** http://localhost:8000/openapi.json
+
+### Key Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth/register` | POST | User registration |
+| `/auth/login` | POST | User login (JWT) |
+| `/cycles` | GET/POST | List/create cycles |
+| `/cycles/insights` | GET | AI insights for user |
+| `/predict` | GET | Next cycle prediction |
+| `/daily-logs` | GET/POST | Symptom tracking |
+| `/chat` | POST | AI chatbot message |
+| `/community/posts` | GET/POST | Community discussions |
+| `/admin/settings` | GET/PUT | System configuration |
+
+---
+
+## 9. Testing
+
+### 9.1 Running Tests
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+### 9.2 Test Files
+
+| Test File | Coverage |
+|-----------|----------|
+| `tests/test_prediction_engine.py` | Prediction algorithms |
+
+### 9.3 Manual Testing Checklist
+
+- [ ] User registration/login
+- [ ] Cycle logging
+- [ ] Prediction accuracy (compare to actual)
+- [ ] AI insights generation
+- [ ] Daily log symptom tracking
+- [ ] Community post/comment
+- [ ] Chatbot response quality
+- [ ] Admin settings modification
+
+---
+
+## 10. Credits & Acknowledgments
+
+**Developed By:** CPE STUDENTS
+
+**Key Technical Decisions:**
+- FastAPI for async performance
+- Hybrid ML architecture for cold-start handling
+- Database-driven configuration for flexibility
+- Google Gemini for conversational AI
+
+**Data Sources:**
+- Menstrual cycle datasets (Kaggle)
+- FedCycleData for population statistics
+- Synthetic data augmentation for training
+
+---
+
+*This document serves as the primary engineering reference for the Period Tracker application. For questions or clarifications, refer to the code comments or contact the CPE STUDENTS development team.*
 |-------|------------|---------------------|
 | **Frontend** | Next.js 16 + React 19 + TypeScript | Server-side rendering สำหรับ SEO, App Router สำหรับ modern routing, TypeScript สำหรับ type safety |
 | **Styling** | Tailwind CSS 4 | Utility-first CSS framework ที่ช่วยให้พัฒนา UI ได้รวดเร็ว มีระบบ Design System ที่ consistent |
@@ -421,121 +1130,155 @@ class NotificationSetting(Base):
 | `ml/base_model/train.py` | Training pipeline สำหรับ HistGradientBoosting |
 | `ml/base_model/predict.py` | Inference module สำหรับผู้ใช้ใหม่ |
 
-### 4.2 Hybrid Prediction Architecture (3-Tier Strategy)
+### 4.2 User-Selectable Prediction Modes
+
+The system supports **3 user-selectable prediction modes** stored in `user_setup.prediction_mode`:
+
+| Mode | Value | Description | Best For |
+|------|-------|-------------|----------|
+| **Smart AI Hybrid** | `"smart"` | Automated 3-tier intelligence | Most users |
+| **Regular Calendar** | `"strict"` | Pure Weighted Moving Average | Users with irregular cycles |
+| **Fixed Number** | `"fixed"` | Manual cycle length | PCOS or highly irregular cycles |
+
+**Database Schema:**
+```python
+# backend/app/models/user_setup.py
+class UserSetup(Base):
+    prediction_mode = Column(String, default="smart")  # "smart", "strict", "fixed"
+    manual_cycle_length = Column(Integer, default=28)  # Used when mode="fixed"
+```
+
+---
+
+### 4.3 Mode 1: Smart AI Hybrid ("smart")
+
+**Automated 3-Tier Strategy** - The system automatically selects the best algorithm based on user's cycle count.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     HYBRID PREDICTION PIPELINE                          │
+│                     SMART AI HYBRID PIPELINE                              │
 │                                                                         │
-│   User Cycles    │   Strategy                │   Confidence           │
-│   ───────────────┼───────────────────────────┼────────────────        │
-│   0-3 cycles     │   Global ML Model         │   Low (40-50%)         │
-│   (Cold Start)   │   (HistGradientBoosting)  │                        │
-│                  │                           │                        │
-│   4-5 cycles     │   Bayesian Shrinkage      │   Medium (50-70%)      │
-│   (Sparse Data)  │   + Global Priors         │                        │
-│                  │                           │                        │
-│   6+ cycles      │   Weighted Moving Average │   High (70-90%)        │
-│   (Rich Data)    │   (Recent data weighted)  │                        │
+│   User Cycles    │   Algorithm              │   Confidence Label       │
+│   ───────────────┼──────────────────────────┼────────────────────      │
+│   0-3 cycles     │   Global ML Model        │   "Global ML Model"      │
+│   (Cold Start)   │   (HistGradientBoosting) │   Confidence: ~50%       │
+│                  │                          │                          │
+│   4-5 cycles     │   Bayesian Shrinkage     │   "Bayesian Hybrid"      │
+│   (Sparse Data)  │   + Global Priors        │   Confidence: ~65%       │
+│                  │                          │                          │
+│   6+ cycles      │   Weighted Moving Avg    │   "Weighted Personal"    │
+│   (Rich Data)    │   + Light smoothing      │   Confidence: 70-90%     │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Tier 1: Global ML Model (HistGradientBoostingRegressor)
+#### Tier 1: Global ML Model (0-3 cycles)
 
-**สำหรับ:** ผู้ใช้ใหม่ที่ยังไม่มีประวัติรอบเดือน (Cold Start Problem)
+**Code:** `prediction_engine.py:_predict_smart()` (lines 202-224)
 
-**Code Location:** `backend/app/services/prediction_engine.py:12-15`
+Uses HistGradientBoostingRegressor trained on population data:
 
 ```python
-# Import ML model (graceful fallback if ML module not available)
-try:
-    from base_model.predict import predict_next_cycle as ml_predict_next_cycle
-except ImportError:
-    ml_predict_next_cycle = None
+if ml_predict_next_cycle:
+    user_features = cls._build_user_ml_features(db, user_id)
+    ml_pred = ml_predict_next_cycle(user_features)
+    cycle_avg = ml_pred.get("predicted_cycle_length", 28)
 ```
 
-**Why HistGradientBoosting?**
-- รองรับ Missing Values (NaN) ได้โดยไม่ต้อง impute data
-- ไม่ overfit ง่ายเมื่อเทียบกับ Neural Networks
-- Training รวดเร็ว ไม่ต้องใช้ GPU
+**Features used:** Age, BMI, Stress Level, Exercise, Sleep, Diet
 
-**Training Pipeline:** `ml/base_model/train.py`
+#### Tier 2: Bayesian Shrinkage (4-5 cycles)
 
-```python
-# ml/base_model/train.py:41-43
-from sklearn.ensemble import HistGradientBoostingRegressor
+**Code:** `prediction_engine.py:_predict_smart()` (lines 226-246)
 
-cycle_model = HistGradientBoostingRegressor(random_state=42, max_iter=150, max_depth=10)
-cycle_model.fit(Xc_train, yc_train)
-```
-
-**Features ที่ใช้:**
-- Age, BMI (จาก UserSetup)
-- Stress Level, Exercise Frequency
-- Sleep Hours, Diet type
-
-#### Tier 2: Bayesian Shrinkage (Empirical Bayes)
-
-**สำหรับ:** ผู้ใช้ที่มีข้อมูล 4-5 รอบ (ข้อมูลน้อย แต่พอมี pattern)
-
-**Code Location:** `backend/app/services/prediction_engine.py:85-140`
+Blends user data with global priors using Empirical Bayes:
 
 ```python
-# Concept: User Mean ← Shrink toward → Global Prior
 # Formula: Posterior = (n × UserMean + k × GlobalPrior) / (n + k)
-
-@classmethod
-def predict(cls, db, user_id, cycles):
-    if len(cycles) < cls.MIN_REQUIRED:  # < 4 cycles
-        # Use ML Model + Global Priors
-        return ml_prediction
-    elif len(cycles) < cls.WINDOW_SIZE:  # 4-5 cycles
-        # Use Bayesian Shrinkage
-        user_avg = mean(cycle_lengths)
-        global_prior = load_global_priors()  # From ml/global_priors.py
-        posterior = cls._bayesian_shrinkage(user_avg, global_prior, n=len(cycles))
-        return posterior
+k = PRIOR_STRENGTH  # 3 pseudo-observations
+cycle_avg = (cycle_n * cycle_avg_raw + k * priors.cycle_mean) / (cycle_n + k)
 ```
 
-**Why Bayesian Shrinkage?**
-- ป้องกัน overfitting เมื่อมีข้อมูลน้อย
-- "Pull" ค่าเฉลี่ยของผู้ใช้ไปหา population mean ตามสัดส่วนของ sample size
-- ถ้าผู้ใช้มีข้อมูลมาก → ค่าเฉลี่ยส่วนตัวมีน้ำหนักมาก
-- ถ้าผู้ใช้มีข้อมูลน้อย → ให้น้ำหนักกับค่าเฉลี่ยทั่วไปมากขึ้น
+**Why:** Prevents overfitting when user has limited data.
 
-#### Tier 3: Weighted Moving Average
+#### Tier 3: Weighted Moving Average (6+ cycles)
 
-**สำหรับ:** ผู้ใช้ที่มีข้อมูล 6+ รอบ (ข้อมูลมากพอสำหรับ pattern ส่วนตัว)
+**Code:** `prediction_engine.py:_predict_smart()` (lines 248-262)
 
-**Code Location:** `backend/app/services/prediction_engine.py:63-83`
+Uses pure personal history with light smoothing:
 
 ```python
-@staticmethod
-def weighted_prediction(values):
-    avg = mean(values)
-    sd = stdev(values) if len(values) > 1 else 0
-    
-    # 1. Remove outliers (>2 SD from mean)
-    if sd > 0:
-        values = [v for v in values if abs((v - avg) / sd) <= 2]
-    
-    # 2. Weighted average (recent cycles have higher weight)
-    weights = list(range(1, len(values) + 1))  # [1, 2, 3, ..., n]
-    weighted_sum = sum(v * w for v, w in zip(values, weights))
-    weighted_avg = round(weighted_sum / sum(weights))
-    
-    return weighted_avg, std_dev, len(values)
+# Recent cycles have higher weight
+weights = list(range(1, len(values) + 1))  # [1, 2, 3, ..., n]
+weighted_avg = sum(v * w for v, w in zip(values, weights)) / sum(weights)
 ```
-
-**Why Weighted Average?**
-- รอบเดือนล่าสุดมีความสำคัญมากกว่ารอบเก่า
-- ชีวิตคนเปลี่ยนไปตามเวลา (อายุ, สุขภาพ, ความเครียด)
-- ลดผลกระทบจาก outliers โดยการตัดค่าที่เกิน 2 SD
 
 ---
 
-### 4.3 Architecture Decision Record (ADR)
+### 4.4 Mode 2: Regular Calendar ("strict")
+
+**Pure Weighted Moving Average** - Bypasses the automated tier system.
+
+**Code:** `prediction_engine.py:_predict_strict()` (lines 133-175)
+
+**Behavior:**
+- Always uses `_weighted_prediction()` with outlier filtering (>2 SD)
+- Ignores Global ML model and Bayesian shrinkage
+- Returns `None` if fewer than 3 cycles (requires manual data entry)
+
+**Algorithm Details:**
+
+```python
+@staticmethod
+def _weighted_prediction(values):
+    # 1. Remove outliers (>2 SD from mean)
+    filtered = [v for v in values if abs((v - avg) / sd) <= 2]
+    
+    # 2. Weighted average (recent cycles weighted higher)
+    weights = list(range(1, len(filtered) + 1))
+    weighted_avg = sum(v * w for v, w in zip(values, weights)) / sum(weights)
+    
+    return weighted_avg, std_dev, n
+```
+
+**Best for:** Users who want pure personal history without AI interference.
+
+---
+
+### 4.5 Mode 3: Fixed Number ("fixed")
+
+**User-Defined Cycle Length** - Direct user override.
+
+**Code:** `prediction_engine.py:_predict_fixed()` (lines 100-131)
+
+**Behavior:**
+- Returns `user_setup.manual_cycle_length` directly
+- No calculations performed on historical data
+- Period length still uses weighted average if available
+- 95% confidence (user explicitly set this)
+
+**Use Case:**
+- PCOS patients with highly irregular cycles
+- Users who know their body better than any algorithm
+- Medical conditions requiring fixed tracking
+
+**Frontend Control:**
+```typescript
+// frontend/app/(app)/account/page.tsx
+{predictionMode === 'fixed' && (
+  <input
+    type="number"
+    min="21"
+    max="45"
+    value={manualCycleLength}
+    onChange={(e) => setManualCycleLength(Number(e.target.value))}
+  />
+)}
+```
+
+---
+
+### 4.6 Architecture Decision Record (ADR)
 
 #### ADR-001: เลือกใช้ Hybrid Architecture แทน Deep Learning ล้วนๆ
 

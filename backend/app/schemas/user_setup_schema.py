@@ -28,6 +28,10 @@ class UserSetupUpsert(BaseModel):
     pronouns: Optional[str] = Field(default=None, max_length=50)  # e.g., "They/Them"
     has_pcos_or_irregular: bool = False
 
+    # Prediction Mode Settings
+    prediction_mode: str = Field(default="smart", pattern="^(smart|strict|fixed)$")
+    manual_cycle_length: Optional[int] = Field(default=None, ge=21, le=45)
+
 
 class UserGoalUpdate(BaseModel):
     app_goal: AppGoal
@@ -55,6 +59,10 @@ class UserSetupResponse(BaseModel):
     # Inclusivity & Health Conditions
     pronouns: Optional[str] = None
     has_pcos_or_irregular: bool = False
+
+    # Prediction Mode Settings
+    prediction_mode: str = "smart"
+    manual_cycle_length: Optional[int] = None
 
     class Config:
         from_attributes = True

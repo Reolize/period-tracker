@@ -202,18 +202,29 @@ export default function DailyLogModal({
 
   async function save() {
     setError(null)
+    
+    // Format date as YYYY-MM-DD only (strip time component for Thailand timezone)
+    const dateObj = new Date(logDate)
+    const year = dateObj.getFullYear()
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+    const day = String(dateObj.getDate()).padStart(2, '0')
+    const formattedDate = `${year}-${month}-${day}`
+    
+    // Build sex object - only include optional fields if hadSex is true
+    const sexObj: any = { had_sex: hadSex }
+    if (hadSex) {
+      sexObj.protection = protection
+      sexObj.orgasm = orgasm
+      sexObj.pain = painSex
+    }
+    
     const payload: DailyLogUpsert = {
-      log_date: logDate as any,
+      log_date: formattedDate as any,
       bleeding_flow: bleeding,
       discharge_type: discharge,
       physical_symptoms: symptoms,
       moods,
-      sex: {
-        had_sex: hadSex,
-        protection: hadSex ? protection : undefined,
-        orgasm: hadSex ? orgasm : undefined,
-        pain: hadSex ? painSex : undefined,
-      },
+      sex: sexObj,
       bbt_celsius: bbt.trim() ? Number(bbt) : null,
       weight_kg: weight.trim() ? Number(weight) : null,
       pregnancy_week: pregWeek.trim() ? Number(pregWeek) : null,
@@ -236,13 +247,27 @@ export default function DailyLogModal({
     }
   }
 
+  // Add state for custom delete confirmation
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
   async function deleteLog() {
     if (!initialData?.log_date) return
-    if (!confirm("Delete this log?")) return
+    setShowDeleteConfirm(true)
+  }
 
+  async function confirmDeleteLog() {
+    if (!initialData?.log_date) return
+    setShowDeleteConfirm(false)
     setSaving(true)
     try {
-      await apiFetch(`${saveEndpoint}/${initialData.log_date}`, {
+      // Format date as YYYY-MM-DD
+      const dateObj = new Date(initialData.log_date)
+      const year = dateObj.getFullYear()
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+      const day = String(dateObj.getDate()).padStart(2, '0')
+      const formattedDate = `${year}-${month}-${day}`
+      
+      await apiFetch(`${saveEndpoint}/${formattedDate}`, {
         method: "DELETE",
       })
       onDeleted?.()
@@ -263,6 +288,37 @@ export default function DailyLogModal({
         </button>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl max-w-sm w-full p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Delete this log?</h3>
+            <p className="text-gray-500 mb-6">This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteLog}
+                disabled={saving}
+                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="relative bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">

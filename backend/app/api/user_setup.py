@@ -50,6 +50,8 @@ def upsert_user_setup(
             pregnancy_weeks_override=payload.pregnancy_weeks_override,
             pronouns=payload.pronouns,
             has_pcos_or_irregular=payload.has_pcos_or_irregular,
+            prediction_mode=payload.prediction_mode,
+            manual_cycle_length=payload.manual_cycle_length,
         )
         db.add(setup)
     else:
@@ -65,6 +67,38 @@ def upsert_user_setup(
         setup.pregnancy_weeks_override = payload.pregnancy_weeks_override
         setup.pronouns = payload.pronouns
         setup.has_pcos_or_irregular = payload.has_pcos_or_irregular
+        setup.prediction_mode = payload.prediction_mode
+        setup.manual_cycle_length = payload.manual_cycle_length
+
+    db.commit()
+    db.refresh(setup)
+    return setup
+
+
+@router.patch("/", response_model=UserSetupResponse)
+def patch_user_setup(
+    payload: UserSetupUpsert,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Partial update - only updates fields that are explicitly provided (non-None)"""
+    setup = (
+        db.query(UserSetup)
+        .filter(UserSetup.user_id == current_user.id)
+        .first()
+    )
+
+    if not setup:
+        # For new setup, create with defaults then apply provided values
+        setup = UserSetup(user_id=current_user.id)
+        db.add(setup)
+        db.flush()  # Flush to get the ID
+
+    # Update only fields that are explicitly set (not None)
+    update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    for field, value in update_data.items():
+        setattr(setup, field, value)
 
     db.commit()
     db.refresh(setup)

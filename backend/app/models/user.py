@@ -23,6 +23,10 @@ class User(Base):
     # Prediction Settings
     manual_cycle_length = Column(Integer, default=28, nullable=False)  # For Fixed Number mode
 
+    # Privacy Settings
+    share_anonymous_data = Column(Boolean, default=True, nullable=False)  # Allow AI training on anonymized data
+    is_anonymous_mode = Column(Boolean, default=False, nullable=False)  # Hide real identity in community
+
     # Relationships
     notifications = relationship("Notification", foreign_keys="Notification.user_id", back_populates="user", cascade="all, delete-orphan")
     notification_settings = relationship("NotificationSetting", back_populates="user", uselist=False, cascade="all, delete-orphan")

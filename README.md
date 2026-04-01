@@ -1,95 +1,141 @@
-# Period Tracker Application
+# Period Tracker with Personalized AI
 
-A modern, AI-powered period tracking application built with **FastAPI** (Backend) and **Next.js** (Frontend). Features include cycle prediction, symptom tracking, daily logs, notifications, and admin dashboard for system configuration.
+> **Created By:** CPE STUDENTS  
+> An AI-powered menstrual cycle tracking application with hybrid prediction engine.
 
-![Tech Stack](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=flat&logo=nextdotjs&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=flat&logo=postgresql&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=flat&logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React_19-61DAFB?style=flat&logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-316192?style=flat&logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+![Python](https://img.shields.io/badge/Python_3.11-3776AB?style=flat&logo=python&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 
 ---
 
 ## Table of Contents
 
+- [Project Overview](#project-overview)
 - [Features](#features)
+- [Tech Stack](#tech-stack)
 - [Prerequisites](#prerequisites)
 - [Quick Start (Docker)](#quick-start-docker)
 - [Manual Setup](#manual-setup)
 - [Post-Installation](#post-installation)
 - [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [Troubleshooting](#troubleshooting)
+- [Architecture Documentation](#architecture-documentation)
+
+---
+
+## Project Overview
+
+A modern period tracking application featuring:
+
+- **3-Tier Hybrid AI Prediction**: Weighted Moving Average + Bayesian Shrinkage + ML Model
+- **Personalized Insights**: Symptom probability, dynamic luteal phase calculation
+- **AI Health Chatbot**: Google Gemini-powered conversational assistant
+- **Community Features**: Anonymous health discussions with AI moderation
+- **Admin Dashboard**: Dynamic configuration of AI parameters
 
 ---
 
 ## Features
 
-- **User Authentication**: Secure JWT-based authentication with bcrypt password hashing
-- **Cycle Tracking**: Track menstrual cycles with smart predictions
-- **AI Insights**: Dynamic luteal phase calculation, symptom probability predictions, and smart recommendations
-- **Daily Logs**: Log daily symptoms, moods, and health data
-- **Notifications**: Customizable notification system with multiple channels
-- **Admin Dashboard**: System settings management with configurable AI parameters
-- **Responsive UI**: Beautiful, mobile-friendly interface with Tailwind CSS
+### Core Tracking
+- Cycle logging with period length tracking
+- Daily symptom and mood logging
+- Cycle history visualization (calendar + charts)
+- Fertility window prediction
+
+### AI-Powered Features
+- **Smart Prediction**: Automatically selects best algorithm based on data availability
+- **Symptom Probability**: Personalized predictions based on historical patterns
+- **Dynamic Luteal Phase**: Adjusts ovulation prediction based on cycle regularity
+- **Smart Recommendations**: AI-generated health tips based on cycle patterns
+
+### Community & Support
+- Anonymous community posts and comments
+- AI chatbot for menstrual health questions
+- Content moderation using Gemini API
+- Notification system (in-app)
+
+### Admin Features
+- User management dashboard
+- System settings with AI parameter tuning
+- Database-driven configuration (no redeploy needed)
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| **Backend** | FastAPI, Python 3.11, SQLAlchemy 2.0 |
+| **Database** | PostgreSQL 16 |
+| **Authentication** | JWT (python-jose), bcrypt |
+| **AI/ML** | Scikit-learn (HistGradientBoostingRegressor) |
+| **Chatbot** | Google Gemini API |
+| **Container** | Docker, Docker Compose |
 
 ---
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed on your machine:
-
-### For Docker Setup (Recommended)
-- [Docker](https://docs.docker.com/get-docker/) (v20.10 or higher)
-- [Docker Compose](https://docs.docker.com/compose/install/) (v2.0 or higher)
+### Docker Setup (Recommended)
+- [Docker](https://docs.docker.com/get-docker/) v20.10+
+- [Docker Compose](https://docs.docker.com/compose/install/) v2.0+
 - [Git](https://git-scm.com/downloads)
 
-### For Manual Setup
-- [Git](https://git-scm.com/downloads)
-- [Python](https://www.python.org/downloads/) (3.11 or higher)
-- [Node.js](https://nodejs.org/) (20.x or higher)
-- [PostgreSQL](https://www.postgresql.org/download/) (14 or higher)
-- [pip](https://pip.pypa.io/en/stable/installation/)
+### Manual Setup
+- Git
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 14+
 
 ---
 
 ## Quick Start (Docker)
 
-The fastest way to get the application running is using Docker Compose.
-
-### 1. Clone the Repository
+### 1. Clone and Configure
 
 ```bash
 git clone https://github.com/your-username/period-tracker.git
 cd period-tracker
-```
 
-### 2. Environment Setup
-
-Copy the example environment files:
-
-```bash
+# Copy environment files
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
 ```
 
-(Optional) Edit the `.env` files to customize settings like database credentials or JWT secret keys.
-
-### 3. Start All Services
-
-Run the entire stack with a single command:
+### 2. Start All Services
 
 ```bash
 docker-compose up -d
 ```
 
-This will start:
-- **PostgreSQL** database on port `5432`
-- **Backend API** (FastAPI) on port `8000`
-- **Frontend** (Next.js) on port `3000`
+Services started:
+- PostgreSQL on port `5432`
+- FastAPI Backend on port `8000`
+- Next.js Frontend on port `3000`
 
-### 4. Verify Services
+### 3. Initialize System
 
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
-- Frontend App: http://localhost:3000
+```bash
+# Create system settings
+docker-compose exec backend python init_settings.py
+
+# Create admin user
+docker-compose exec backend python create_admin.py
+```
+
+### 4. Access Application
+
+- **Frontend**: http://localhost:3000
+- **API Docs**: http://localhost:8000/docs
+- **Admin Panel**: http://localhost:3000/admin
 
 ### 5. Stop Services
 
@@ -97,8 +143,7 @@ This will start:
 docker-compose down
 ```
 
-To remove all data (including database):
-
+To remove all data:
 ```bash
 docker-compose down -v
 ```
@@ -107,160 +152,103 @@ docker-compose down -v
 
 ## Manual Setup
 
-If you prefer to run services separately without Docker, follow these steps.
-
 ### Backend Setup
-
-#### 1. Create Virtual Environment
 
 ```bash
 cd backend
+
+# Create virtual environment
 python -m venv venv
 
-# On Windows
+# Windows
 venv\Scripts\activate
 
-# On macOS/Linux
+# macOS/Linux
 source venv/bin/activate
-```
 
-#### 2. Install Dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-#### 3. Configure Environment
-
-```bash
+# Configure environment
 cp .env.example .env
-```
 
-Edit `.env` with your PostgreSQL connection details:
-
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/period_tracker
-SECRET_KEY=your-super-secret-key-change-this-in-production
-```
-
-#### 4. Create PostgreSQL Database
-
-```bash
-# Connect to PostgreSQL
-psql -U postgres
-
-# Create database
+# Create database (in psql)
 CREATE DATABASE period_tracker;
-\q
-```
 
-#### 5. Run the Backend
+# Run migrations (if using Alembic)
+alembic upgrade head
 
-```bash
+# Initialize settings
+python init_settings.py
+
+# Create admin
+python create_admin.py
+
+# Start server
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Backend will be available at: http://localhost:8000
-
----
-
 ### Frontend Setup
-
-#### 1. Install Dependencies
 
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
-```
 
-#### 2. Configure Environment
-
-```bash
+# Configure environment
 cp .env.example .env.local
-```
 
-The default API URL should work for local development:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-#### 3. Run the Frontend
-
-```bash
+# Start dev server
 npm run dev
 ```
-
-Frontend will be available at: http://localhost:3000
 
 ---
 
 ## Post-Installation
 
-After starting the application for the first time, you need to initialize system settings and create an admin user.
+### 1. System Settings Initialization
 
-### 1. Initialize System Settings
-
-These are the default configuration values used by the AI prediction engine and other system features.
-
-**With Docker:**
+The AI prediction engine requires system settings to be initialized:
 
 ```bash
+# With Docker
 docker-compose exec backend python init_settings.py
-```
 
-**Without Docker:**
-
-```bash
+# Without Docker
 cd backend
 python init_settings.py
 ```
 
-You should see output like:
-```
-✅ Default system settings initialized successfully!
-   Created 10 new settings.
-```
+Key AI settings created:
+- `ai_regularity_strict_sd`: 2.0 (SD threshold for "Very Regular")
+- `ai_regularity_moderate_sd`: 4.0 (SD threshold for "Moderate Variation")
+- `ai_symptom_base_prob`: 30 (base probability for symptom predictions)
+- `ovulation_offset_days`: 14 (standard luteal phase length)
 
 ### 2. Create Admin User
 
-An admin user is required to access the system settings dashboard.
-
-**With Docker:**
-
 ```bash
+# With Docker
 docker-compose exec backend python create_admin.py
-```
 
-**Without Docker:**
-
-```bash
+# Without Docker
 cd backend
 python create_admin.py
 ```
 
-Follow the prompts to enter email and password:
-```
-==================================================
-   Create Admin Account
-==================================================
+Follow prompts to enter email and password.
 
-Enter admin email: admin@example.com
-Enter admin password: yoursecurepassword
+### 3. Configure Gemini API (Optional)
 
-✅ Admin account created successfully!
-   Email: admin@example.com
+For AI chatbot functionality, add your Gemini API key:
+
+```bash
+# Edit backend/.env
+GEMINI_API_KEY=your-api-key-here
 ```
 
-### 3. Access Admin Dashboard
-
-1. Login to the application at http://localhost:3000 with your admin credentials
-2. Navigate to `/admin` to access the Admin Dashboard
-3. Go to `/admin/settings` to configure system settings including AI parameters:
-   - `ai_regularity_strict_sd`: Threshold for "Very Regular" cycle classification
-   - `ai_regularity_moderate_sd`: Threshold for "Moderate Variation" classification
-   - `ai_symptom_base_prob`: Base probability for symptom predictions
-   - `ovulation_offset_days`: Standard luteal phase length
+Get a key from: https://ai.google.dev/
 
 ---
 
@@ -268,53 +256,55 @@ Enter admin password: yoursecurepassword
 
 ```
 period-tracker/
-├── backend/                 # FastAPI Backend
-│   ├── app/
-│   │   ├── api/            # API Routes
-│   │   ├── core/           # Database, Security
-│   │   ├── models/         # SQLAlchemy Models
-│   │   ├── schemas/        # Pydantic Schemas
-│   │   └── services/       # Business Logic
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── .env.example
-│   ├── init_settings.py    # Initialize system settings
-│   └── create_admin.py     # Create admin user script
 │
-├── frontend/               # Next.js Frontend
-│   ├── app/               # Next.js App Router
-│   ├── components/         # React Components
-│   ├── lib/                # Utilities (API client)
-│   ├── Dockerfile
+├── README.md                 # This file
+├── ARCHITECTURE.md          # Detailed engineering documentation
+├── docker-compose.yml       # Docker orchestration
+├── requirements.txt         # Python dependencies
+│
+├── frontend/                # Next.js 16 Application
+│   ├── app/                 # App Router (Next.js 16)
+│   │   ├── (app)/           # Protected routes
+│   │   │   ├── dashboard/   # User dashboard
+│   │   │   ├── daily-log/   # Symptom tracking
+│   │   │   ├── community/   # Community features
+│   │   │   ├── admin/       # Admin dashboard
+│   │   │   └── ...
+│   │   ├── components/      # React components
+│   │   └── lib/             # API utilities
 │   ├── package.json
-│   └── .env.example
+│   └── Dockerfile
 │
-├── docker-compose.yml      # Docker orchestration
-└── README.md              # This file
+├── backend/                 # FastAPI Application
+│   ├── app/
+│   │   ├── api/            # API routes
+│   │   ├── core/           # Database, security
+│   │   ├── models/         # SQLAlchemy models
+│   │   ├── schemas/        # Pydantic schemas
+│   │   └── services/       # Business logic
+│   ├── tests/              # Test suite
+│   ├── init_settings.py    # Initialize system settings
+│   ├── create_admin.py     # Create admin user
+│   └── Dockerfile
+│
+└── ml/                     # Machine Learning
+    ├── base_model/         # Training & prediction
+    ├── data/               # Datasets
+    └── saved_models/       # Trained models
 ```
 
 ---
 
-## API Documentation
-
-When the backend is running, interactive API documentation is available at:
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
----
-
-## Environment Variables Reference
+## Environment Variables
 
 ### Backend (.env)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:password@localhost:5432/period_tracker` |
-| `SECRET_KEY` | JWT signing key | `your-super-secret-key...` |
+| `SECRET_KEY` | JWT signing key | Change in production |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token lifetime | `60` |
-| `HOST` | Server host | `0.0.0.0` |
-| `PORT` | Server port | `8000` |
+| `GEMINI_API_KEY` | Google Gemini API key | Optional |
 | `CORS_ORIGINS` | Allowed CORS origins | `http://localhost:3000` |
 
 ### Frontend (.env.local)
@@ -325,46 +315,120 @@ When the backend is running, interactive API documentation is available at:
 
 ---
 
+## API Documentation
+
+Interactive API documentation is available when the backend is running:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### Key Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /auth/register` | User registration |
+| `POST /auth/login` | User login (returns JWT) |
+| `GET /cycles` | List user cycles |
+| `POST /cycles` | Create new cycle |
+| `GET /cycles/insights` | Get AI insights |
+| `GET /predict` | Get next cycle prediction |
+| `GET /daily-logs` | List daily logs |
+| `POST /daily-logs` | Create daily log |
+| `POST /chat` | Chat with AI assistant |
+| `GET /community/posts` | List community posts |
+| `GET /admin/settings` | Get system settings |
+| `PUT /admin/settings/{key}` | Update setting |
+
+---
+
 ## Troubleshooting
 
 ### Database Connection Issues
 
-If you get database connection errors:
-1. Ensure PostgreSQL is running
-2. Check your `DATABASE_URL` in `.env`
-3. Verify the database `period_tracker` exists
-
-### Docker Issues
-
-If services fail to start:
 ```bash
-# Check logs
-docker-compose logs
+# Check if PostgreSQL is running
+docker-compose ps
+
+# View logs
+docker-compose logs db
+
+# Reset database (WARNING: deletes data)
+docker-compose down -v
+docker-compose up -d
+docker-compose exec backend python init_settings.py
+```
+
+### Backend Won't Start
+
+```bash
+# Check backend logs
+docker-compose logs backend
 
 # Rebuild containers
 docker-compose up -d --build
+```
 
-# Reset everything (WARNING: deletes data)
-docker-compose down -v
-docker-compose up -d
+### Frontend Build Errors
+
+```bash
+cd frontend
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
 ```
 
 ### Port Conflicts
 
-If ports 3000, 8000, or 5432 are in use, modify the port mappings in `docker-compose.yml`:
+If ports 3000, 8000, or 5432 are in use, modify `docker-compose.yml`:
+
 ```yaml
-ports:
-  - "3001:3000"  # Use 3001 on host instead
+services:
+  frontend:
+    ports:
+      - "3001:3000"  # Use 3001 on host
+  backend:
+    ports:
+      - "8001:8000"  # Use 8001 on host
 ```
 
 ---
 
-## License
+## Architecture Documentation
 
-This project is private and not licensed for public use.
+For detailed technical documentation including:
+- Mathematical formulas (WMA, Bayesian Shrinkage)
+- Architecture decisions
+- Database schema details
+- ML model specifications
+
+See **[ARCHITECTURE.md](./ARCHITECTURE.md)**
+
+---
+
+## Future Roadmap
+
+| Feature | Status | Priority |
+|---------|--------|----------|
+| Email Notifications | ⚠️ Partial | High |
+| Mobile App (React Native) | ❌ Planned | Medium |
+| Advanced ML Personalization | ⚠️ Scaffolding | Medium |
+| Wearable Device Integration | ❌ Planned | Low |
 
 ---
 
 ## Support
 
-For issues or questions, please contact the development team.
+For issues or questions:
+1. Check [ARCHITECTURE.md](./ARCHITECTURE.md) for technical details
+2. Review API documentation at `/docs` endpoint
+3. Contact the CPE STUDENTS development team
+
+---
+
+**License:** Private - For educational purposes only
+
+**Developed By:** CPE STUDENTS | April 2026
+
+
+---
+

@@ -16,6 +16,8 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     manual_cycle_length: Optional[int] = 28
+    share_anonymous_data: Optional[bool] = None
+    is_anonymous_mode: Optional[bool] = None
 
 class UserResponse(BaseModel):
     id: int
@@ -28,6 +30,8 @@ class UserResponse(BaseModel):
     joined_at: Optional[datetime] = None
     badges: Optional[List[str]] = None
     manual_cycle_length: int = 28
+    share_anonymous_data: bool = True
+    is_anonymous_mode: bool = False
 
     class Config:
         from_attributes = True

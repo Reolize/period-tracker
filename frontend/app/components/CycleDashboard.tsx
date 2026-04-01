@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api"
 import DailyLogModal from "@/app/components/DailyLogModal"
 import AIPredictionReport from "@/app/components/AIPredictionReport"
 import ChatbotWidget from "@/app/components/ChatbotWidget"
-import { ChevronDown, ChevronUp, Droplet, Frown, Thermometer, Smile, Pencil } from "lucide-react"
+import { ChevronDown, ChevronUp, Droplet, Frown, Thermometer, Smile, Pencil, Plus } from "lucide-react"
 
 import Calendar from "react-calendar"
 import "react-calendar/dist/Calendar.css"
@@ -250,8 +250,9 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
 
   const [saving, setSaving] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null)
-  const [calendarActionOpen, setCalendarActionOpen] = useState(false)
+  const [selectedLogData, setSelectedLogData] = useState<any>(null) // Store log data for editing
   const [dailyLogOpen, setDailyLogOpen] = useState(false)
+  const [calendarActionOpen, setCalendarActionOpen] = useState(false)
   const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null)
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -391,7 +392,13 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
   function handleCalendarDayClick(date: Date) {
     const iso = toLocalISOString(date)
     setSelectedCalendarDate(iso)
-    setCalendarActionOpen(true)
+    
+    // Find existing log for this date to pre-fill the modal
+    const existingLog = dailyLogs.find((log) => log.log_date === iso)
+    setSelectedLogData(existingLog || null)
+    
+    // Open daily log modal directly (skip the popup)
+    setDailyLogOpen(true)
   }
 
   function handleEdit(cycle: any) {
@@ -418,7 +425,21 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
   const isPcosMode = userSetup?.has_pcos_or_irregular === true
   
   const latestCycle = cycles.length > 0 ? cycles[0] : null
-  const cycleDay = getCycleDay(latestCycle?.start_date)
+  let cycleDay = getCycleDay(latestCycle?.start_date)
+  const today = new Date(new Date().toDateString())
+  
+  // If latest cycle has ended, calculate cycle day from prediction
+  if (latestCycle?.end_date && prediction?.predicted_next_start && cycleDay === null) {
+    const nextPeriod = toDate(prediction.predicted_next_start)
+    const cycleLength = prediction?.cycle_length_prediction || 28
+    if (nextPeriod) {
+      const daysUntilNext = daysBetween(today, nextPeriod)
+      if (daysUntilNext >= 0) {
+        cycleDay = Math.max(1, cycleLength - daysUntilNext)
+      }
+    }
+  }
+  
   const phase = getPhaseInfo(cycleDay, prediction?.cycle_length_prediction)
   const progress = cycleDay && prediction?.cycle_length_prediction
     ? cycleDay / prediction.cycle_length_prediction
@@ -589,7 +610,14 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
             <h2 className="section-title mb-1">Log today</h2>
             <p className="text-sm text-gray-500">Track bleeding, pain, mood, and BBT in one place.</p>
           </div>
-          <DailyLogModal triggerLabel="Add daily log" onSaved={() => loadData()} />
+          <button
+            onClick={() => {
+              document.getElementById('calendar-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }}
+            className="btn-primary"
+          >
+            Add daily log
+          </button>
         </div>
 
         <div className="card lg:col-span-2">
@@ -733,52 +761,133 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
                             <span className="text-lg">✨</span> Cycle Summary
                           </h4>
                           
-                          {cycleLogs.length === 0 ? (
-                            <p className="text-[#7d6b86] italic">No daily logs recorded for this cycle.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {cycleLogs.map(log => {
-                                  // Format display string for each day
-                                  const dateStr = formatDate(log.log_date)
-                                  const flow = log.bleeding_flow !== "none" ? `Flow: ${formatLogText(log.bleeding_flow)}` : ""
-                                  const discharge = log.discharge_type !== "none" ? `Discharge: ${formatLogText(log.discharge_type)}` : ""
-                                  const symps = log.physical_symptoms.length ? `Symptoms: ${log.physical_symptoms.map(formatLogText).join(", ")}` : ""
-                                  const moods = log.moods.length ? `Moods: ${log.moods.map(formatLogText).join(", ")}` : ""
-                                  const bbt = log.bbt_celsius ? `BBT: ${log.bbt_celsius}°C` : ""
-                                
-                                // Skip rendering if it's an empty log
-                                if (!flow && !discharge && !symps && !moods && !bbt && !log.notes) return null;
-
-                                return (
-                                  <div key={log.id} className="flex flex-col sm:flex-row gap-2 sm:gap-4 p-3 bg-white rounded-xl border border-[#f0e8ee] relative group hover:border-[#f2d6e4] transition-colors">
-                                    <div className="font-medium text-[#3f2b4d] whitespace-nowrap min-w-[60px] flex items-center gap-2">
-                                      {dateStr}
+                          {/* Generate all days in the period range */}
+                          {(() => {
+                            // Helper: Generate array of dates from start to end
+                            const generateDateRange = (startDate: Date, endDate: Date): Date[] => {
+                              const dates: Date[] = []
+                              const current = new Date(startDate)
+                              const end = new Date(endDate)
+                              // Normalize times to midnight for accurate comparison
+                              current.setHours(0, 0, 0, 0)
+                              end.setHours(0, 0, 0, 0)
+                              while (current.getTime() <= end.getTime()) {
+                                dates.push(new Date(current))
+                                current.setDate(current.getDate() + 1)
+                              }
+                              return dates
+                            }
+                            
+                            // Determine period range
+                            const periodStart = toDate(c.start_date)
+                            const periodEnd = c.end_date ? toDate(c.end_date) : new Date()
+                            
+                            if (!periodStart || !periodEnd) {
+                              return <p className="text-[#7d6b86] italic">Invalid period dates.</p>
+                            }
+                            
+                            // Generate all dates in the range
+                            const allDates = generateDateRange(periodStart, periodEnd)
+                            
+                            // Create a map of existing logs by date string
+                            const logMap = new Map()
+                            cycleLogs.forEach((log: any) => {
+                              const dateKey = new Date(log.log_date).toDateString()
+                              logMap.set(dateKey, log)
+                            })
+                            
+                            if (allDates.length === 0) {
+                              return <p className="text-[#7d6b86] italic">No period dates to display.</p>
+                            }
+                            
+                            return (
+                              <div className="space-y-3">
+                                {allDates.map((date, index) => {
+                                  const dateKey = date.toDateString()
+                                  const log = logMap.get(dateKey)
+                                  const dateStr = formatDate(toLocalISOString(date))
+                                  
+                                  // If log exists, render full log data
+                                  if (log) {
+                                    const flow = log.bleeding_flow !== "none" ? `Flow: ${formatLogText(log.bleeding_flow)}` : ""
+                                    const discharge = log.discharge_type !== "none" ? `Discharge: ${formatLogText(log.discharge_type)}` : ""
+                                    const symps = log.physical_symptoms.length ? `Symptoms: ${log.physical_symptoms.map(formatLogText).join(", ")}` : ""
+                                    const moods = log.moods.length ? `Moods: ${log.moods.map(formatLogText).join(", ")}` : ""
+                                    const bbt = log.bbt_celsius ? `BBT: ${log.bbt_celsius}°C` : ""
+                                    
+                                    const hasData = flow || discharge || symps || moods || bbt || log.notes
+                                    
+                                    return (
+                                      <div key={dateKey} className="flex flex-col sm:flex-row gap-2 sm:gap-4 p-3 bg-white rounded-xl border border-[#f0e8ee] relative group hover:border-[#f2d6e4] transition-colors">
+                                        <div className="font-medium text-[#3f2b4d] whitespace-nowrap min-w-[60px] flex items-center gap-2">
+                                          {index === 0 && <span className="text-xs text-[#ff7eb6] font-bold">START</span>}
+                                          {index === allDates.length - 1 && c.end_date && <span className="text-xs text-[#7d6b86]">END</span>}
+                                          {dateStr}
+                                        </div>
+                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#7d6b86] flex-1">
+                                          {hasData ? (
+                                            <>
+                                              {flow && <span className="flex items-center gap-1"><Droplet size={14} className="text-red-400"/> {flow}</span>}
+                                              {discharge && <span className="flex items-center gap-1"><Droplet size={14} className="text-blue-300"/> {discharge}</span>}
+                                              {symps && <span className="flex items-center gap-1"><Frown size={14} className="text-orange-400"/> {symps}</span>}
+                                              {moods && <span className="flex items-center gap-1"><Smile size={14} className="text-yellow-400"/> {moods}</span>}
+                                              {bbt && <span className="flex items-center gap-1"><Thermometer size={14} className="text-purple-400"/> {bbt}</span>}
+                                              {!flow && !discharge && !symps && !moods && !bbt && log.notes && <span className="text-[#7d6b86] italic">Notes only</span>}
+                                            </>
+                                          ) : (
+                                            <span className="text-[#7d6b86] italic text-xs">No data logged</span>
+                                          )}
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            setSelectedCalendarDate(date.toISOString())
+                                            setSelectedLogData(log) // Pass the existing log data
+                                            setDailyLogOpen(true)
+                                          }}
+                                          className="absolute right-3 top-3 sm:static p-1.5 text-[#7d6b86] hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
+                                          title={hasData ? "Edit daily log" : "Add daily log"}
+                                        >
+                                          <Pencil size={16} />
+                                        </button>
+                                      </div>
+                                    )
+                                  }
+                                  
+                                  // If no log exists, render placeholder with Add button
+                                  return (
+                                    <div key={dateKey} className="flex flex-col sm:flex-row gap-2 sm:gap-4 p-3 bg-white/50 rounded-xl border border-dashed border-[#e0d5db] relative group hover:border-[#ff7eb6]/30 hover:bg-white transition-colors">
+                                      <div className="font-medium text-[#7d6b86] whitespace-nowrap min-w-[60px] flex items-center gap-2">
+                                        {index === 0 && <span className="text-xs text-[#ff7eb6] font-bold">START</span>}
+                                        {index === allDates.length - 1 && c.end_date && <span className="text-xs text-[#7d6b86]">END</span>}
+                                        {dateStr}
+                                      </div>
+                                      <div className="flex-1 flex items-center">
+                                        <span className="text-[#b06a94]/60 italic text-xs">No log recorded</span>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          setSelectedCalendarDate(date.toISOString())
+                                          setSelectedLogData(null) // Clear log data for new entry
+                                          setDailyLogOpen(true)
+                                        }}
+                                        className="absolute right-3 top-3 sm:static flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#ff7eb6] hover:text-white hover:bg-[#ff7eb6] bg-[#fff0f6] rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                        title="Add daily log"
+                                      >
+                                        <Plus size={14} />
+                                        Add Log
+                                      </button>
                                     </div>
-                                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[#7d6b86] flex-1">
-                                      {flow && <span className="flex items-center gap-1"><Droplet size={14} className="text-red-400"/> {flow}</span>}
-                                      {discharge && <span className="flex items-center gap-1"><Droplet size={14} className="text-blue-300"/> {discharge}</span>}
-                                      {symps && <span className="flex items-center gap-1"><Frown size={14} className="text-orange-400"/> {symps}</span>}
-                                      {moods && <span className="flex items-center gap-1"><Smile size={14} className="text-yellow-400"/> {moods}</span>}
-                                      {bbt && <span className="flex items-center gap-1"><Thermometer size={14} className="text-purple-400"/> {bbt}</span>}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        setSelectedCalendarDate(log.log_date)
-                                        setDailyLogOpen(true)
-                                      }}
-                                      className="absolute right-3 top-3 sm:static p-1.5 text-[#7d6b86] hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
-                                      title="Edit daily log"
-                                    >
-                                      <Pencil size={16} />
-                                    </button>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                                  )
+                                })}
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
                     </div>
@@ -961,14 +1070,24 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
       {dailyLogOpen && selectedCalendarDate && (
         <DailyLogModal
           defaultDate={selectedCalendarDate}
+          initialData={selectedLogData} // Pass existing log data for editing
           hideTrigger={true}
           open={dailyLogOpen}
           onOpenChange={setDailyLogOpen}
           onSaved={() => {
             setDailyLogOpen(false)
+            setSelectedLogData(null) // Clear log data after saving
             loadData()
           }}
-          onClose={() => setDailyLogOpen(false)}
+          onDeleted={() => {
+            setDailyLogOpen(false)
+            setSelectedLogData(null) // Clear log data after deletion
+            loadData()
+          }}
+          onClose={() => {
+            setDailyLogOpen(false)
+            setSelectedLogData(null) // Clear log data when closing
+          }}
         />
       )}
 

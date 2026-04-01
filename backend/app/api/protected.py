@@ -82,6 +82,13 @@ def update_current_user(
     if user_update.manual_cycle_length is not None:
         user.manual_cycle_length = user_update.manual_cycle_length
     
+    # Update privacy settings if provided
+    if user_update.share_anonymous_data is not None:
+        user.share_anonymous_data = user_update.share_anonymous_data
+    
+    if user_update.is_anonymous_mode is not None:
+        user.is_anonymous_mode = user_update.is_anonymous_mode
+    
     db.commit()
     db.refresh(user)
     return user
@@ -184,47 +191,41 @@ def set_predefined_avatar(
 @router.get("/me/next-period-prediction")
 def get_next_period_prediction(
     prediction_mode: str = "smart",
+    manual_cycle_length: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Calculate next period prediction using 3 distinct tiers:
-    
-    - Smart AI: Hybrid (Global Baseline 28.5 + Weighted Personal Average)
-    - Regular Calendar: Pure Personal History (Simple Average)
-    - Fixed Number: User-Defined Cycle Length
+    Calculate next period prediction using PredictionEngine (unified with Insights).
     """
     from app.models.cycle import Cycle
     from app.models.user_setup import UserSetup
+    from app.services.prediction_engine import PredictionEngine
     from datetime import datetime, timedelta
     
-    # Global medical baseline
-    GLOBAL_BASELINE = 28.5
-    
-    # Get user's cycles sorted by start date (most recent first)
+    # Get user's cycles sorted by start date (ascending for PredictionEngine)
     cycles = db.query(Cycle).filter(
         Cycle.user_id == current_user.id
-    ).order_by(Cycle.start_date.desc()).all()
+    ).order_by(Cycle.start_date.asc()).all()
     
-    # Get user setup for PCOS/irregular flag
+    # Get user setup for prediction settings
     user_setup = db.query(UserSetup).filter(
         UserSetup.user_id == current_user.id
     ).first()
     
     has_pcos_or_irregular = user_setup.has_pcos_or_irregular if user_setup else False
+    db_manual_cycle_length = user_setup.manual_cycle_length if user_setup else 28
+    db_prediction_mode = user_setup.prediction_mode if user_setup else "smart"
     
-    # Calculate cycle lengths from history
-    cycle_lengths = []
-    for i in range(len(cycles) - 1):
-        current_cycle = cycles[i]
-        next_cycle = cycles[i + 1]
-        days_diff = (current_cycle.start_date - next_cycle.start_date).days
-        if days_diff > 0 and days_diff < 90:
-            cycle_lengths.append(days_diff)
+    print(f"[BACKEND API] UserSetup loaded from DB: mode={db_prediction_mode}, manual={db_manual_cycle_length}")
+    
+    # Use saved preference if not provided in query
+    if prediction_mode == "smart" and user_setup and user_setup.prediction_mode:
+        prediction_mode = user_setup.prediction_mode
     
     # Get last period date or return insufficient data
     if len(cycles) > 0:
-        last_period_date = cycles[0].start_date
+        last_period_date = cycles[-1].start_date  # Most recent (last in asc order)
     else:
         return {
             "has_enough_data": False,
@@ -235,83 +236,59 @@ def get_next_period_prediction(
         }
     
     today = datetime.now().date()
-    days_since_last = (today - last_period_date).days
     
-    # Initialize response variables
-    avg_cycle_length = GLOBAL_BASELINE
-    accuracy_buffer = 2
+    # UNIFIED: Use PredictionEngine (same as Insights dashboard)
+    result = PredictionEngine.predict(
+        db=db,
+        user_id=current_user.id,
+        cycles=cycles,
+        prediction_mode=prediction_mode,
+        manual_cycle_length=db_manual_cycle_length if prediction_mode == "fixed" else None
+    )
+    
+    if not result:
+        # Fallback for insufficient data
+        return {
+            "has_enough_data": False,
+            "message": "Not enough cycle data for prediction",
+            "min_required_cycles": 3,
+            "current_cycles": len(cycles),
+            "prediction_mode": prediction_mode
+        }
+    
+    # Extract values from PredictionEngine result
+    avg_cycle_length = result["cycle_length_prediction"]
+    predicted_next_date = result["predicted_next_start"]
+    days_remaining = (predicted_next_date - today).days
+    
+    # Determine accuracy buffer based on data quality
+    cycle_std_dev = result.get("cycle_std_dev", 2)
+    confidence_score = result.get("confidence_score", 50)
+    
+    if cycle_std_dev < 1.0 and len(cycles) >= 6:
+        accuracy_buffer = 1  # Very regular
+    elif cycle_std_dev < 2.0:
+        accuracy_buffer = 2  # Regular
+    elif cycle_std_dev < 4.0:
+        accuracy_buffer = 3  # Somewhat irregular
+    else:
+        accuracy_buffer = 4  # Irregular
+    
     is_irregular_adjusted = False
-    mode_label = ""
     warning_message = None
     
-    # ===================== TIER 1: SMART AI (Hybrid Intelligence) =====================
-    if prediction_mode == "smart":
-        mode_label = "Smart AI Hybrid"
-        
-        if len(cycle_lengths) >= 2:
-            # Weighted Moving Average - recent cycles weighted more heavily
-            # Use last 6 cycles max, with exponential weighting
-            recent_cycles = cycle_lengths[:6]
-            weights = []
-            for i in range(len(recent_cycles)):
-                # More recent = higher weight (exponential)
-                weight = 2 ** (len(recent_cycles) - i - 1)
-                weights.append(weight)
-            
-            weighted_personal = sum(c * w for c, w in zip(recent_cycles, weights)) / sum(weights)
-            
-            # Hybrid: Blend global baseline with weighted personal average
-            # Weight: 30% global, 70% personal (adjustable based on data confidence)
-            confidence = min(1.0, len(recent_cycles) / 6)  # More data = higher confidence in personal
-            avg_cycle_length = (GLOBAL_BASELINE * (1 - confidence * 0.7)) + (weighted_personal * (confidence * 0.7 + 0.3))
-        else:
-            # Not enough history, use global baseline
-            avg_cycle_length = GLOBAL_BASELINE
-        
-        # PCOS/Irregular adjustment
-        if has_pcos_or_irregular:
-            accuracy_buffer = 5  # Wider buffer for irregular cycles
-            is_irregular_adjusted = True
-            warning_message = "Warning: Cycle is unpredictable due to irregular patterns"
-        elif len(cycle_lengths) >= 4:
-            # Calculate variance for dynamic buffer
-            variance = sum((x - avg_cycle_length) ** 2 for x in cycle_lengths[:4]) / 4
-            std_dev = variance ** 0.5
-            accuracy_buffer = max(2, min(4, int(std_dev / 2)))
-        else:
-            accuracy_buffer = 3  # Medium buffer for limited data
+    if has_pcos_or_irregular:
+        accuracy_buffer = max(accuracy_buffer, 5)
+        is_irregular_adjusted = True
+        warning_message = "Warning: Cycle is unpredictable due to irregular patterns"
     
-    # ===================== TIER 2: REGULAR CALENDAR (Pure Personal) =====================
-    elif prediction_mode == "strict":
-        mode_label = "Regular Calendar"
-        
-        if len(cycle_lengths) >= 2:
-            # Simple arithmetic mean of last 3-6 cycles
-            recent_cycles = cycle_lengths[:6]
-            avg_cycle_length = sum(recent_cycles) / len(recent_cycles)
-            accuracy_buffer = 2
-        elif len(cycle_lengths) == 1:
-            # Only one cycle, use it but with caution
-            avg_cycle_length = cycle_lengths[0]
-            accuracy_buffer = 3
-        else:
-            # No history - fallback to 28 days
-            avg_cycle_length = 28
-            accuracy_buffer = 3
-            warning_message = "Calculating from your history... (Using default 28 days)"
+    # Calculate cycle lengths from history for display
+    cycle_lengths = []
+    for i in range(len(cycles) - 1):
+        if cycles[i].cycle_length:
+            cycle_lengths.append(cycles[i].cycle_length)
     
-    # ===================== TIER 3: FIXED NUMBER (User-Defined) =====================
-    elif prediction_mode == "fixed":
-        mode_label = "Fixed Number"
-        
-        # Use user's manual cycle length setting
-        manual_length = current_user.manual_cycle_length or 28
-        avg_cycle_length = manual_length
-        accuracy_buffer = 2  # Fixed mode has standard buffer
-    
-    # Calculate predicted next period date
-    predicted_next_date = last_period_date + timedelta(days=int(avg_cycle_length))
-    days_remaining = (predicted_next_date - today).days
+    mode_label = result.get("mode_label", prediction_mode)
     
     return {
         "has_enough_data": True,
@@ -324,8 +301,10 @@ def get_next_period_prediction(
         "accuracy_buffer": accuracy_buffer,
         "is_irregular_adjusted": is_irregular_adjusted,
         "has_pcos_or_irregular": has_pcos_or_irregular,
-        "cycles_used_for_calculation": len(cycle_lengths[:6]),
+        "cycles_used_for_calculation": len(cycle_lengths),
         "warning_message": warning_message,
-        "global_baseline": GLOBAL_BASELINE if prediction_mode == "smart" else None,
-        "manual_cycle_length": current_user.manual_cycle_length if prediction_mode == "fixed" else None
+        "cycle_std_dev": cycle_std_dev,
+        "confidence_score": confidence_score,
+        "global_baseline": 28.5 if prediction_mode == "smart" else None,
+        "manual_cycle_length": db_manual_cycle_length if prediction_mode == "fixed" else None
     }
