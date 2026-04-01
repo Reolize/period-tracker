@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.api.deps import get_db
 from app.api.auth_deps import get_current_user
-from app.models.notification import Notification, NotificationSetting
+from app.models.community import Notification, NotificationSetting
 from app.models.user import User
 from app.schemas.notification_schema import (
     NotificationResponse,

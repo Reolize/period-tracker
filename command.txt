@@ -1,6 +1,6 @@
-Backend --
+cd C:\Users\User\Desktop\period-tracker\backend
 
-Run environment ที่ C:\Users\User\Desktop\period-tracker\backend
+Backend --
 
 venv\Scripts\activate
 
@@ -21,7 +21,7 @@ docker exec -it period_postgres psql -U postgres -d period_tracker
 
 
 git add .
-git commit -m "Prediction Engine Update"
+git commit -m "feats: Community Board feature added, AI Chatbot and moderator added, bugs fix"
 git push origin main
 
 

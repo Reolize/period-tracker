@@ -1,9 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Users, Shield, Sparkles, MessageSquareText, Heart, Search, TrendingUp, Filter } from "lucide-react"
+import { Plus, Users, Shield, Sparkles, MessageSquareText, Heart, Trash2, Flag, X, LayoutGrid, UserCircle, ChevronDown, Filter } from "lucide-react"
 import { PostCard } from "@/app/components/PostCard"
-import { CommentModal } from "@/app/components/CommentModal"
 import { ToastContainer, useToast } from "@/app/components/Toast"
 import type { Post, PostCategory, ReactionType } from "@/app/types/tracking"
 
@@ -17,12 +16,19 @@ const CATEGORIES: { value: PostCategory; label: string; color: string; descripti
   { value: "Questions", label: "Questions", color: "bg-blue-100 text-blue-700", description: "Ask the community" },
 ]
 
+type ViewMode = "all" | "my-posts"
+type SortBy = "latest" | "most_reactions" | "most_comments"
+type Timeframe = "all" | "1d" | "7d" | "30d"
+
 export default function CommunityPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<PostCategory | "All">("All")
+  const [viewMode, setViewMode] = useState<ViewMode>("all")
+  const [sortBy, setSortBy] = useState<SortBy>("latest")
+  const [timeframe, setTimeframe] = useState<Timeframe>("all")
   const [showCreateModal, setShowCreateModal] = useState(false)
-
+  
   // Create post form state
   const [newPostTitle, setNewPostTitle] = useState("")
   const [newPostContent, setNewPostContent] = useState("")
@@ -30,27 +36,50 @@ export default function CommunityPage() {
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   
-  // Comment modal state
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null)
-  const [showCommentModal, setShowCommentModal] = useState(false)
+  // Delete modal state
+  const [postToDelete, setPostToDelete] = useState<Post | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Report modal state
+  const [postToReport, setPostToReport] = useState<Post | null>(null)
+  const [reportReason, setReportReason] = useState("")
   
   // Toast notification
   const { toasts, addToast, removeToast, success, error } = useToast()
 
-  // Fetch posts
+  // Fetch posts when filters change
   useEffect(() => {
     fetchPosts()
-  }, [selectedCategory])
+  }, [selectedCategory, viewMode, sortBy, timeframe])
+
+  // Re-fetch when window regains focus (user returns from post detail page)
+  useEffect(() => {
+    function handleFocus() {
+      // Small delay to ensure backend has processed any changes
+      setTimeout(() => fetchPosts(), 100)
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    return () => window.removeEventListener('focus', handleFocus)
+  }, [selectedCategory, viewMode, sortBy, timeframe])
 
   async function fetchPosts() {
     try {
       setIsLoading(true)
       const token = localStorage.getItem("token")
       
-      const url = new URL(`${API_URL}/community/posts`)
+      // Use different endpoint based on view mode
+      const endpoint = viewMode === "my-posts" 
+        ? `${API_URL}/community/my-posts` 
+        : `${API_URL}/community/posts`
+      
+      const url = new URL(endpoint)
+      
       if (selectedCategory !== "All") {
         url.searchParams.set("category", selectedCategory)
       }
+      url.searchParams.set("sort_by", sortBy)
+      url.searchParams.set("timeframe", timeframe)
       url.searchParams.set("page", "1")
       url.searchParams.set("per_page", "20")
       
@@ -58,7 +87,7 @@ export default function CommunityPage() {
         headers: { 
           Authorization: `Bearer ${token}`,
           "ngrok-skip-browser-warning": "69420",
-          "Bypass-Tunnel-Reminder": "true", // For LocalTunnel
+          "Bypass-Tunnel-Reminder": "true",
         },
       })
       
@@ -68,6 +97,7 @@ export default function CommunityPage() {
       }
     } catch (err) {
       console.error("Failed to fetch posts:", err)
+      error("Connection Error", "Failed to load posts. Please check your connection and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -137,20 +167,22 @@ export default function CommunityPage() {
     setIsAnonymous(false)
   }
 
-  // Handle comment button click
-  function handleComment(postId: number) {
+  // Handle delete post click (open modal)
+  function handleDeleteClick(postId: number) {
     const post = posts.find(p => p.id === postId)
     if (post) {
-      setSelectedPost(post)
-      setShowCommentModal(true)
+      setPostToDelete(post)
     }
   }
 
-  // Handle delete post
-  async function handleDeletePost(postId: number) {
+  // Confirm delete
+  async function confirmDelete() {
+    if (!postToDelete) return
+    
+    setIsDeleting(true)
     try {
       const token = localStorage.getItem("token")
-      const res = await fetch(`${API_URL}/community/posts/${postId}`, {
+      const res = await fetch(`${API_URL}/community/posts/${postToDelete.id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -160,7 +192,7 @@ export default function CommunityPage() {
       })
 
       if (res.ok) {
-        setPosts(posts.filter(p => p.id !== postId))
+        setPosts(posts.filter(p => p.id !== postToDelete.id))
         success("Post Deleted", "Your post has been deleted successfully")
       } else {
         error("Failed to Delete", "Could not delete the post. Please try again.")
@@ -168,15 +200,32 @@ export default function CommunityPage() {
     } catch (err) {
       console.error("Failed to delete post:", err)
       error("Error", "Network error. Please check your connection.")
+    } finally {
+      setIsDeleting(false)
+      setPostToDelete(null)
     }
   }
 
-  // Handle report post
-  async function handleReportPost(postId: number, reason: string) {
+  // Handle report post click (open modal)
+  function handleReportClick(postId: number) {
+    const post = posts.find(p => p.id === postId)
+    if (post) {
+      setPostToReport(post)
+      setReportReason("")
+    }
+  }
+
+  // Submit report
+  function submitReport(e: React.FormEvent) {
+    e.preventDefault()
+    if (!postToReport || !reportReason.trim()) return
+    
     // For now, just show a success message
-    // In production, this would send a report to the backend
     success("Report Submitted", "Thank you for helping keep our community safe. We'll review this post.")
-    console.log(`Reported post ${postId} with reason: ${reason}`)
+    console.log(`Reported post ${postToReport.id} with reason: ${reportReason}`)
+    
+    setPostToReport(null)
+    setReportReason("")
   }
 
   // React to post
@@ -201,6 +250,7 @@ export default function CommunityPage() {
       }
     } catch (err) {
       console.error("Failed to react:", err)
+      error("Error", "Failed to add reaction. Please try again.")
     }
   }
 
@@ -221,9 +271,12 @@ export default function CommunityPage() {
       if (res.ok) {
         // Refresh the post to get updated reactions
         fetchPosts()
+      } else {
+        error("Error", "Failed to remove reaction. Please try again.")
       }
     } catch (err) {
       console.error("Failed to remove reaction:", err)
+      error("Error", "Failed to remove reaction. Please try again.")
     }
   }
 
@@ -276,36 +329,103 @@ export default function CommunityPage() {
           </div>
         </div>
 
-        {/* Category Filter */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => setSelectedCategory("All")}
-            className={`
-              px-3 py-1.5 rounded-full text-sm font-medium transition-all
-              ${selectedCategory === "All"
-                ? "bg-[#ff7eb6] text-white shadow-sm"
-                : "bg-white text-[#7d6b86] border border-[#f0e8ee] hover:border-[#ff7eb6]"
-              }
-            `}
-          >
-            All Posts
-          </button>
-          {CATEGORIES.map((cat) => (
+        {/* View Mode Tabs & Filters */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          {/* View Mode Tabs */}
+          <div className="flex items-center gap-1 bg-white rounded-xl p-1 border border-[#f0e8ee] shadow-sm">
             <button
-              key={cat.value}
-              onClick={() => setSelectedCategory(cat.value)}
+              onClick={() => setViewMode("all")}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                ${viewMode === "all"
+                  ? "bg-[#ff7eb6] text-white shadow-sm"
+                  : "text-[#7d6b86] hover:bg-gray-50"
+                }
+              `}
+            >
+              <LayoutGrid size={16} />
+              All Posts
+            </button>
+            <button
+              onClick={() => setViewMode("my-posts")}
+              className={`
+                flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
+                ${viewMode === "my-posts"
+                  ? "bg-[#ff7eb6] text-white shadow-sm"
+                  : "text-[#7d6b86] hover:bg-gray-50"
+                }
+              `}
+            >
+              <UserCircle size={16} />
+              My Posts
+            </button>
+          </div>
+
+          {/* Sort & Filter Dropdowns */}
+          <div className="flex items-center gap-2">
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="appearance-none bg-white border border-[#f0e8ee] text-[#3f2b4d] rounded-xl px-4 py-2 pr-10 text-sm font-medium focus:outline-none focus:border-[#ff7eb6] cursor-pointer"
+              >
+                <option value="latest">Latest</option>
+                <option value="most_reactions">Most Reactions</option>
+                <option value="most_comments">Most Comments</option>
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7d6b86] pointer-events-none" />
+            </div>
+
+            {/* Timeframe Dropdown */}
+            <div className="relative">
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value as Timeframe)}
+                className="appearance-none bg-white border border-[#f0e8ee] text-[#3f2b4d] rounded-xl px-4 py-2 pr-10 text-sm font-medium focus:outline-none focus:border-[#ff7eb6] cursor-pointer"
+              >
+                <option value="all">All Time</option>
+                <option value="1d">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+              </select>
+              <Filter size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7d6b86] pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Category Filter */}
+        {viewMode === "all" && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            <button
+              onClick={() => setSelectedCategory("All")}
               className={`
                 px-3 py-1.5 rounded-full text-sm font-medium transition-all
-                ${selectedCategory === cat.value
-                  ? `${cat.color} shadow-sm ring-1 ring-current`
+                ${selectedCategory === "All"
+                  ? "bg-[#ff7eb6] text-white shadow-sm"
                   : "bg-white text-[#7d6b86] border border-[#f0e8ee] hover:border-[#ff7eb6]"
                 }
               `}
             >
-              {cat.label}
+              All Posts
             </button>
-          ))}
-        </div>
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setSelectedCategory(cat.value)}
+                className={`
+                  px-3 py-1.5 rounded-full text-sm font-medium transition-all
+                  ${selectedCategory === cat.value
+                    ? `${cat.color} shadow-sm ring-1 ring-current`
+                    : "bg-white text-[#7d6b86] border border-[#f0e8ee] hover:border-[#ff7eb6]"
+                  }
+                `}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Posts Feed */}
         <div className="space-y-4">
@@ -356,9 +476,8 @@ export default function CommunityPage() {
                 post={post}
                 onReact={handleReact}
                 onRemoveReaction={handleRemoveReaction}
-                onComment={handleComment}
-                onDelete={handleDeletePost}
-                onReport={handleReportPost}
+                onDeleteClick={handleDeleteClick}
+                onReportClick={handleReportClick}
                 isAuthor={post.is_author}
               />
             ))
@@ -366,18 +485,6 @@ export default function CommunityPage() {
         </div>
       </div>
 
-      {/* Comment Modal */}
-      <CommentModal
-        post={selectedPost}
-        isOpen={showCommentModal}
-        onClose={() => {
-          setShowCommentModal(false)
-          setSelectedPost(null)
-        }}
-        onCommentAdded={() => {
-          fetchPosts() // Refresh posts to get updated comment count
-        }}
-      />
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -510,6 +617,120 @@ export default function CommunityPage() {
                   ) : (
                     "🚀 Post Now!"
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal - At Root Level */}
+      {postToDelete && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isDeleting) setPostToDelete(null)
+          }}
+        >
+          <div 
+            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-in zoom-in-95 scale-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <Trash2 size={28} className="text-red-500" />
+              </div>
+              <h3 className="text-xl font-bold text-[#3f2b4d] mb-2">
+                Delete Post?
+              </h3>
+              <p className="text-sm text-[#7d6b86]">
+                Are you sure you want to delete this post? This action cannot be undone and all comments will be permanently removed.
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPostToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-3 border border-[#f0e8ee] text-[#7d6b86] rounded-xl font-medium hover:bg-gray-50 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium shadow-lg shadow-red-500/20 transition-all flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    Delete Post
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal - At Root Level */}
+      {postToReport && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-[10vh] pb-8 px-4 z-[100] animate-in fade-in duration-200"
+          onClick={() => setPostToReport(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl overflow-y-auto max-h-[80vh] animate-in zoom-in-95 slide-in-from-top-4 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-[#3f2b4d] flex items-center gap-2">
+                <Flag size={20} className="text-amber-500" />
+                Report Post
+              </h3>
+              <button 
+                onClick={() => setPostToReport(null)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-[#7d6b86] mb-4">
+              Please tell us why you&apos;re reporting this post. Your report helps keep our community safe.
+            </p>
+            
+            <form onSubmit={submitReport} className="space-y-4">
+              <textarea
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                placeholder="e.g., This post contains inappropriate content, spam, harassment..."
+                rows={4}
+                className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-2 focus:ring-[#ff7eb6]/20 transition-all text-[#3f2b4d] text-sm resize-none"
+                required
+              />
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPostToReport(null)}
+                  className="flex-1 px-4 py-2.5 border border-[#f0e8ee] text-[#7d6b86] rounded-xl font-medium hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!reportReason.trim()}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-medium shadow-lg shadow-amber-500/20 transition-all"
+                >
+                  Submit Report
                 </button>
               </div>
             </form>

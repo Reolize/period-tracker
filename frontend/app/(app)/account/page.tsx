@@ -1,49 +1,88 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { apiFetch } from "@/lib/api"
-import { User, Mail, Calendar, LogOut, ShieldAlert, Edit2, Check, Download, Trash2, Save, RotateCcw, Info, Scale, Ruler, CalendarDays, Target, Baby, Heart, ChevronRight, X } from "lucide-react"
+import { 
+  Mail, ShieldAlert, Edit2, Save, Info, X, Camera, AtSign, AlertCircle, Upload,
+  Download, Trash2, RotateCcw, Heart, Settings, Bell, Activity, Scale, Ruler,
+  Sparkles, Calendar, ShieldCheck
+} from "lucide-react"
 
-type CycleRow = {
-  id: number
-  start_date: string
-  end_date: string
-  cycle_length: number | null
-  period_length: number | null
-}
+// Predefined cute avatars from Dicebear
+const PREDEFINED_AVATARS = [
+  { id: 0, url: "https://api.dicebear.com/7.x/notionists/svg?seed=1&backgroundColor=ffdfbf", name: "Sunny" },
+  { id: 1, url: "https://api.dicebear.com/7.x/notionists/svg?seed=2&backgroundColor=c0aede", name: "Lavender" },
+  { id: 2, url: "https://api.dicebear.com/7.x/notionists/svg?seed=3&backgroundColor=b6e3f4", name: "Sky" },
+  { id: 3, url: "https://api.dicebear.com/7.x/notionists/svg?seed=4&backgroundColor=ffd5dc", name: "Rose" },
+  { id: 4, url: "https://api.dicebear.com/7.x/notionists/svg?seed=5&backgroundColor=d1d4f9", name: "Periwinkle" },
+  { id: 5, url: "https://api.dicebear.com/7.x/notionists/svg?seed=6&backgroundColor=ffdfbf", name: "Peach" },
+]
 
 export default function AccountPage() {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Loading & Error states
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [email, setEmail] = useState("")
-
-  // Cycle states
-  const [cycles, setCycles] = useState<CycleRow[]>([])
-  const [setupData, setSetupData] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState<"profile" | "health" | "settings">("profile")
   
-  // Phase 2 states (Manual Override)
-  const [isEditingCycle, setIsEditingCycle] = useState(false)
-  const [manualCycleLength, setManualCycleLength] = useState(28)
-  const [manualPeriodLength, setManualPeriodLength] = useState(5)
-  const [isResetToAI, setIsResetToAI] = useState(false)
-  const [predictionMethod, setPredictionMethod] = useState<"smart" | "strict">("smart")
-
-  // ML Health Data States
-  const [isEditingProfile, setIsEditingProfile] = useState(false)
-  const [dateOfBirth, setDateOfBirth] = useState("")
-  const [heightCm, setHeightCm] = useState<number | "">("")
+  // User profile data
+  const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
+  const [avatarUrl, setAvatarUrl] = useState("")
+  const [badges, setBadges] = useState<string[]>([])
+  const [joinedAt, setJoinedAt] = useState("")
+  const [lastUsernameChange, setLastUsernameChange] = useState<string | null>(null)
+  
+  // Avatar modal states
+  const [isEditingAvatar, setIsEditingAvatar] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [selectedAvatarId, setSelectedAvatarId] = useState<number | null>(null)
+  
+  // Username validation
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+  const [cooldownDays, setCooldownDays] = useState<number>(0)
+  
+  // Health data states
   const [weightKg, setWeightKg] = useState<number | "">("")
-  const [pronouns, setPronouns] = useState<string>("")
+  const [heightCm, setHeightCm] = useState<number | "">("")
   const [hasPcosOrIrregular, setHasPcosOrIrregular] = useState<boolean>(false)
-  const [profileSaving, setProfileSaving] = useState(false)
+  const [predictionMode, setPredictionMode] = useState<"smart" | "strict" | "fixed">("smart")
+  
+  // Manual cycle length for Fixed Number mode
+  const [manualCycleLength, setManualCycleLength] = useState<number>(28)
+  
+  // Notification settings
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true)
+  const [reminderDays, setReminderDays] = useState<number>(3)
+  
+  // Privacy settings
+  const [shareAnonymousData, setShareAnonymousData] = useState<boolean>(true)
+  const [anonymousMode, setAnonymousMode] = useState<boolean>(false)
+  
+  // Prediction data from backend
+  const [predictionData, setPredictionData] = useState<any>(null)
+  const [predictionLoading, setPredictionLoading] = useState<boolean>(false)
 
-  // Mode Switcher States
-  const [showPregnancyModal, setShowPregnancyModal] = useState(false)
-  const [pregnancyDueDate, setPregnancyDueDate] = useState("")
-  const [updatingGoal, setUpdatingGoal] = useState(false)
+  // Fetch prediction data when mode, PCOS setting, or manual cycle length changes
+  useEffect(() => {
+    fetchPrediction()
+  }, [predictionMode, hasPcosOrIrregular, manualCycleLength])
+
+  async function fetchPrediction() {
+    setPredictionLoading(true)
+    try {
+      const res = await apiFetch(`/users/me/next-period-prediction?prediction_mode=${predictionMode}`)
+      setPredictionData(res)
+    } catch (e) {
+      console.log("Failed to fetch prediction", e)
+    } finally {
+      setPredictionLoading(false)
+    }
+  }
 
   useEffect(() => {
     loadData()
@@ -52,660 +91,841 @@ export default function AccountPage() {
   async function loadData() {
     setLoading(true)
     try {
+      // Load user profile data
       const userRes = await apiFetch("/users/me")
       setEmail(userRes.email)
+      setUsername(userRes.username || "")
+      setAvatarUrl(userRes.avatar_url || "")
+      setBadges(userRes.badges || [])
+      setJoinedAt(userRes.joined_at || "")
+      setLastUsernameChange(userRes.last_username_change || null)
       
-      const setupRes = await apiFetch("/user-setup/")
-      setSetupData(setupRes)
-      if (setupRes) {
-        setManualCycleLength(setupRes.avg_cycle_length_days || 28)
-        setManualPeriodLength(setupRes.avg_period_length_days || 5)
-        setDateOfBirth(setupRes.date_of_birth || "")
-        setHeightCm(setupRes.height_cm || "")
-        setWeightKg(setupRes.weight_kg || "")
-        setPronouns(setupRes.pronouns || "")
-        setHasPcosOrIrregular(setupRes.has_pcos_or_irregular || false)
+      if (userRes.last_username_change) {
+        const lastChange = new Date(userRes.last_username_change)
+        const now = new Date()
+        const daysDiff = Math.floor((now.getTime() - lastChange.getTime()) / (1000 * 60 * 60 * 24))
+        setCooldownDays(Math.max(0, 90 - daysDiff))
       }
-
-      const cyclesRes = await apiFetch("/cycles/")
-      setCycles(cyclesRes)
+      
+      // Load health/setup data
+      try {
+        const setupRes = await apiFetch("/user-setup/")
+        if (setupRes) {
+          setWeightKg(setupRes.weight_kg || "")
+          setHeightCm(setupRes.height_cm || "")
+          setHasPcosOrIrregular(setupRes.has_pcos_or_irregular || false)
+          setPredictionMode(setupRes.prediction_mode || "smart")
+          setManualCycleLength(setupRes.manual_cycle_length || 28)
+          setNotificationsEnabled(setupRes.notifications_enabled !== false)
+          setReminderDays(setupRes.reminder_days || 3)
+        }
+      } catch (e) {
+        console.log("No setup data found")
+      }
     } catch (err: any) {
       console.error(err)
-      setError(err.message || "Failed to load account data")
+      setError(err.message || "Failed to load profile data")
     } finally {
       setLoading(false)
     }
   }
 
-  // --- 3-PHASE LOGIC CALCULATION ---
-  // Phase 3: Actual Average
-  const completedCycles = cycles.filter(c => c.cycle_length !== null)
-  const hasActualAverage = completedCycles.length >= 3
-  
-  let actualAvgCycle = 0
-  let actualAvgPeriod = 0
-  if (hasActualAverage) {
-    actualAvgCycle = Math.round(completedCycles.reduce((sum, c) => sum + (c.cycle_length || 0), 0) / completedCycles.length)
-    actualAvgPeriod = Math.round(completedCycles.reduce((sum, c) => sum + (c.period_length || 0), 0) / completedCycles.length)
+  // Calculate BMI
+  const calculateBMI = (): number | null => {
+    if (weightKg && heightCm && weightKg > 0 && heightCm > 0) {
+      const heightM = Number(heightCm) / 100
+      return Number((Number(weightKg) / (heightM * heightM)).toFixed(1))
+    }
+    return null
   }
 
-  // Determine current active phase and values
-  let currentCycleLength = 28
-  let currentPeriodLength = 5
-  let activePhase: "AI" | "Manual" | "Actual" = "AI"
-
-  if (hasActualAverage) {
-    activePhase = "Actual"
-    currentCycleLength = actualAvgCycle
-    currentPeriodLength = actualAvgPeriod
-  } else if (setupData?.avg_cycle_length_days) {
-    activePhase = "Manual"
-    currentCycleLength = setupData.avg_cycle_length_days
-    currentPeriodLength = setupData.avg_period_length_days || 5
-  } else {
-    // Phase 1: AI Predicted (Mocking ML default)
-    activePhase = "AI"
-    currentCycleLength = 28
-    currentPeriodLength = 5
+  const getBMICategory = (bmi: number): { label: string; color: string } => {
+    if (bmi < 18.5) return { label: "Underweight", color: "text-blue-500" }
+    if (bmi < 25) return { label: "Healthy", color: "text-green-500" }
+    if (bmi < 30) return { label: "Overweight", color: "text-amber-500" }
+    return { label: "Obese", color: "text-red-500" }
   }
 
-  async function handleSaveCycleSettings() {
+  function validateUsername(value: string): boolean {
+    if (!value) return true
+    if (value.length < 3 || value.length > 20) {
+      setUsernameError("Username must be 3-20 characters")
+      return false
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+      setUsernameError("Only letters, numbers, and underscores allowed")
+      return false
+    }
+    setUsernameError(null)
+    return true
+  }
+
+  function handleUsernameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value.toLowerCase()
+    setUsername(value)
+    validateUsername(value)
+  }
+
+  async function handleSaveAll() {
+    if (cooldownDays > 0) {
+      const userRes = await apiFetch("/users/me")
+      if (username !== userRes.username) {
+        setUsernameError(`Username can only be changed once every 3 months. ${cooldownDays} days remaining.`)
+        return
+      }
+    }
+    
+    if (!validateUsername(username)) return
+    
     setSaving(true)
     try {
-      const payload = {
-        ...setupData,
-        // If user pressed Reset, we send null to clear the manual override in DB
-        avg_cycle_length_days: isResetToAI ? null : manualCycleLength,
-        avg_period_length_days: isResetToAI ? null : manualPeriodLength,
-      }
-
-      await apiFetch("/user-setup/", {
+      // Save profile data
+      const profilePayload: any = {}
+      if (username) profilePayload.username = username
+      if (avatarUrl) profilePayload.avatar_url = avatarUrl
+      
+      await apiFetch("/users/me", {
         method: "PUT",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(profilePayload)
       })
       
-      setIsEditingCycle(false)
-      setIsResetToAI(false) // Reset the flag after successful save
+      // Save health/setup data
+      const setupPayload = {
+        weight_kg: weightKg ? Number(weightKg) : null,
+        height_cm: heightCm ? Number(heightCm) : null,
+        has_pcos_or_irregular: hasPcosOrIrregular,
+        prediction_mode: predictionMode,
+        manual_cycle_length: manualCycleLength,
+        notifications_enabled: notificationsEnabled,
+        reminder_days: reminderDays
+      }
+      
+      await apiFetch("/user-setup/", {
+        method: "PUT",
+        body: JSON.stringify(setupPayload)
+      })
+      
       await loadData()
     } catch (err: any) {
-      alert(err.message)
+      setUsernameError(err.message || "Failed to save changes")
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleSaveProfile() {
-    setProfileSaving(true)
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    setUploading(true)
     try {
-      const payload = {
-        ...setupData,
-        date_of_birth: dateOfBirth || null,
-        height_cm: heightCm || null,
-        weight_kg: weightKg || null,
-        pronouns: pronouns || null,
-        has_pcos_or_irregular: hasPcosOrIrregular,
-      }
-
-      await apiFetch("/user-setup/", {
-        method: "PUT",
-        body: JSON.stringify(payload)
+      const formData = new FormData()
+      formData.append("file", file)
+      
+      const res = await apiFetch("/users/me/avatar", {
+        method: "POST",
+        body: formData,
+        headers: {}
       })
       
-      setIsEditingProfile(false)
+      setAvatarUrl(res.avatar_url)
+      setIsEditingAvatar(false)
       await loadData()
     } catch (err: any) {
-      alert(err.message)
+      alert(err.message || "Failed to upload avatar")
     } finally {
-      setProfileSaving(false)
+      setUploading(false)
     }
   }
 
-  async function handleUpdateGoal(goal: string, dueDate?: string) {
-    setUpdatingGoal(true)
+  async function handleSelectPredefined(avatarId: number) {
+    setSelectedAvatarId(avatarId)
+    setUploading(true)
+    
     try {
-      await apiFetch("/user-setup/goal", {
-        method: "PATCH",
-        body: JSON.stringify({
-          app_goal: goal,
-          pregnancy_due_date: dueDate || null
-        })
+      const res = await apiFetch(`/users/me/avatar/predefined?avatar_index=${avatarId}`, {
+        method: "POST",
       })
       
-      // Successfully updated, redirect to dashboard
-      router.push("/dashboard")
+      setAvatarUrl(res.avatar_url)
+      setIsEditingAvatar(false)
+      setSelectedAvatarId(null)
+      await loadData()
     } catch (err: any) {
-      alert(err.message || "Failed to update goal")
+      alert(err?.response?.data?.detail || err?.message || "Failed to set avatar")
     } finally {
-      setUpdatingGoal(false)
-      setShowPregnancyModal(false)
+      setUploading(false)
     }
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading settings...</div>
+  const displayName = username || email.split('@')[0]
+  const isCooldownActive = cooldownDays > 0
+  const bmi = calculateBMI()
+  const bmiCategory = bmi ? getBMICategory(bmi) : null
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-violet-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-pink-300 to-violet-300 animate-pulse" />
+          <p className="text-gray-500 font-medium">Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8 pb-12">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[#3f2b4d] tracking-tight">Account Settings</h1>
-        </div>
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
-          <ShieldAlert className="mx-auto text-red-400 mb-3" size={32} />
-          <h3 className="text-red-800 font-bold mb-1">Connection Error</h3>
-          <p className="text-red-600 text-sm mb-4">{error}</p>
-          <button 
-            onClick={() => {
-              setError(null)
-              loadData()
-            }}
-            className="px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-medium hover:bg-red-200 transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-violet-50 p-4">
+        <div className="max-w-md mx-auto mt-20">
+          <div className="bg-white border border-red-100 rounded-3xl p-8 text-center shadow-lg">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center">
+              <ShieldAlert className="text-red-400" size={32} />
+            </div>
+            <h3 className="text-red-800 font-bold text-lg mb-2">Connection Error</h3>
+            <p className="text-red-600 text-sm mb-6">{error}</p>
+            <button 
+              onClick={() => {
+                setError(null)
+                loadData()
+              }}
+              className="px-6 py-3 bg-red-100 text-red-700 rounded-full text-sm font-medium hover:bg-red-200 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
-
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#3f2b4d] tracking-tight">Account Settings</h1>
-        <p className="text-[#7d6b86] mt-2">Manage your profile, cycle preferences, and privacy.</p>
-      </div>
-
-      {/* CARD 1: Personal Info */}
-      <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-xl font-bold text-[#3f2b4d] flex items-center gap-2">
-            <User className="text-[#ff7eb6]" size={22} />
-            Profile Information
-          </h2>
-          {!isEditingProfile && (
-            <button 
-              onClick={() => setIsEditingProfile(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-[#ff7eb6] hover:text-[#e05896] bg-[#fff0f6] px-4 py-2 rounded-full transition-colors"
-            >
-              <Edit2 size={14} /> Edit
-            </button>
-          )}
-        </div>
-        
-        <div className="space-y-6 max-w-xl">
-          {/* Account Credentials */}
-          <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100">
-            <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">Email Address</label>
-            <div className="relative max-w-md">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Mail size={18} className="text-gray-400" />
-              </div>
-              <input
-                type="email"
-                disabled
-                value={email}
-                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 text-gray-500 rounded-xl cursor-not-allowed"
-              />
-            </div>
-            <p className="text-xs text-gray-400 mt-2">Your email is used for login and cannot be changed here.</p>
-          </div>
-
-          {/* Health & ML Data */}
-          <div className="pt-2">
-            <h3 className="text-sm font-bold text-[#3f2b4d] mb-4 uppercase tracking-wider">Health Data for AI Prediction</h3>
-            
-            {isEditingProfile ? (
-              <div className="space-y-5 bg-[#faf6f8] p-6 rounded-2xl border border-[#f2d6e4]">
-                <div className="grid sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-[#7d6b86] mb-1.5 flex items-center gap-2">
-                      <CalendarDays size={16} className="text-[#b06a94]"/> Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      value={dateOfBirth}
-                      onChange={e => setDateOfBirth(e.target.value)}
-                      className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
-                    />
-                  </div>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-[#7d6b86] mb-1.5 flex items-center gap-2">
-                      <Ruler size={16} className="text-[#b06a94]"/> Height (cm)
-                    </label>
-                    <input
-                      type="number"
-                      min={50} max={300}
-                      value={heightCm}
-                      onChange={e => setHeightCm(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#7d6b86] mb-1.5 flex items-center gap-2">
-                      <Scale size={16} className="text-[#b06a94]"/> Weight (kg)
-                    </label>
-                    <input
-                      type="number"
-                      min={20} max={300}
-                      value={weightKg}
-                      onChange={e => setWeightKg(e.target.value ? Number(e.target.value) : "")}
-                      className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
-                    />
-                  </div>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">Pronouns</label>
-                    <select
-                      value={pronouns}
-                      onChange={e => setPronouns(e.target.value)}
-                      className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d] bg-white"
-                    >
-                      <option value="">Select pronouns (optional)</option>
-                      <option value="She/Her">She/Her</option>
-                      <option value="He/Him">He/Him</option>
-                      <option value="They/Them">They/Them</option>
-                      <option value="Ze/Zir">Ze/Zir</option>
-                      <option value="Xe/Xem">Xe/Xem</option>
-                      <option value="Prefer not to say">Prefer not to say</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3 p-4 bg-white rounded-xl border border-[#f0e8ee]">
-                  <input
-                    type="checkbox"
-                    id="pcos-toggle"
-                    checked={hasPcosOrIrregular}
-                    onChange={e => setHasPcosOrIrregular(e.target.checked)}
-                    className="mt-1 w-5 h-5 accent-[#ff7eb6] cursor-pointer"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="pcos-toggle" className="block text-sm font-medium text-[#3f2b4d] cursor-pointer">
-                      PCOS / Irregular Cycles Mode
-                    </label>
-                    <p className="text-xs text-[#7d6b86] mt-1">
-                      Enable this if you have PCOS or irregular cycles. AI will focus on symptom patterns instead of cycle predictions.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-3 justify-end pt-2">
-                  <button 
-                    onClick={() => {
-                      setIsEditingProfile(false)
-                      // Restore original values
-                      setDateOfBirth(setupData?.date_of_birth || "")
-                      setHeightCm(setupData?.height_cm || "")
-                      setWeightKg(setupData?.weight_kg || "")
-                      setPronouns(setupData?.pronouns || "")
-                      setHasPcosOrIrregular(setupData?.has_pcos_or_irregular || false)
-                    }}
-                    className="px-5 py-2.5 rounded-xl border border-[#f0e8ee] text-[#7d6b86] font-medium hover:bg-white transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleSaveProfile}
-                    disabled={profileSaving}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#ff7eb6] text-white font-medium hover:bg-[#e05896] transition-colors disabled:opacity-50 shadow-sm shadow-[#ff7eb6]/30"
-                  >
-                    <Save size={16} /> {profileSaving ? "Saving..." : "Save Profile"}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-3 gap-6 p-6 bg-white rounded-2xl border border-[#f0e8ee]">
-                <div>
-                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5"><CalendarDays size={14}/> Born</p>
-                  <p className="text-[#3f2b4d] font-medium">{dateOfBirth ? new Date(dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5">👤 Pronouns</p>
-                  <p className="text-[#3f2b4d] font-medium">{pronouns || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5"><Ruler size={14}/> Height</p>
-                  <p className="text-[#3f2b4d] font-medium">{heightCm ? `${heightCm} cm` : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5"><Scale size={14}/> Weight</p>
-                  <p className="text-[#3f2b4d] font-medium">{weightKg ? `${weightKg} kg` : "-"}</p>
-                </div>
-                {hasPcosOrIrregular && (
-                  <div className="sm:col-span-2">
-                    <p className="text-xs text-[#b06a94] uppercase font-semibold tracking-wider mb-1 flex items-center gap-1.5">🏥 PCOS/Irregular Mode</p>
-                    <p className="text-[#3f2b4d] font-medium">Enabled - AI focuses on symptom patterns</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* CARD 2: Advanced Cycle Settings (3-Phase) */}
-      <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-[#3f2b4d] flex items-center gap-2">
-              <Calendar className="text-[#ff7eb6]" size={22} />
-              Cycle Settings
-            </h2>
-            <div className="flex items-start gap-1.5 mt-1.5 text-[#7d6b86]">
-              <Info size={16} className="shrink-0 mt-0.5" />
-              <p className="text-sm leading-snug">
-                How we calculate your predictions. We use AI for initial estimates, and automatically switch to your actual average once you log at least 3 cycles.
-              </p>
-            </div>
-          </div>
-          
-          {!hasActualAverage && !isEditingCycle && (
-            <button 
-              onClick={() => setIsEditingCycle(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-[#ff7eb6] hover:text-[#e05896] bg-[#fff0f6] px-4 py-2 rounded-full transition-colors"
-            >
-              <Edit2 size={14} /> Edit
-            </button>
-          )}
-        </div>
-
-        <div className="bg-[#faf6f8] rounded-2xl p-6 border border-[#f2d6e4]">
-          {isEditingCycle ? (
-            <div className="space-y-6">
-              <div className="grid sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">Cycle Length (Days)</label>
-                  <input
-                    type="number"
-                    min={15} max={60}
-                    value={manualCycleLength}
-                    onChange={e => {
-                      setManualCycleLength(Number(e.target.value))
-                      setIsResetToAI(false) // User started typing, so it's manual again
-                    }}
-                    className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#7d6b86] mb-1.5">Period Length (Days)</label>
-                  <input
-                    type="number"
-                    min={1} max={15}
-                    value={manualPeriodLength}
-                    onChange={e => {
-                      setManualPeriodLength(Number(e.target.value))
-                      setIsResetToAI(false) // User started typing, so it's manual again
-                    }}
-                    className="w-full border border-[#f0e8ee] p-3 rounded-xl focus:outline-none focus:border-[#ff7eb6] focus:ring-1 focus:ring-[#ff7eb6] transition-all text-[#3f2b4d]"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-3 justify-end items-center mt-6 pt-6 border-t border-[#f2d6e4]">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50/30 via-white to-violet-50/30 pb-12">
+      {/* Avatar Modal */}
+      {isEditingAvatar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-800">Choose Your Avatar</h3>
                 <button 
                   onClick={() => {
-                    setManualCycleLength(28)
-                    setManualPeriodLength(5)
-                    setIsResetToAI(true) // Mark as AI default
+                    setIsEditingAvatar(false)
+                    setSelectedAvatarId(null)
                   }}
-                  className={`flex items-center gap-1.5 text-sm font-medium transition-colors mr-auto ${isResetToAI ? 'text-gray-400 cursor-default' : 'text-[#b06a94] hover:text-[#3f2b4d]'}`}
-                  disabled={isResetToAI}
+                  className="p-2 hover:bg-pink-50 rounded-full transition-colors"
                 >
-                  <RotateCcw size={14} /> {isResetToAI ? "Restored to AI Default" : "Reset to AI Default"}
-                </button>
-                <button 
-                  onClick={() => {
-                    setIsEditingCycle(false)
-                    setIsResetToAI(false) // Reset flag on cancel
-                    // Restore manual values from setupData if user cancels
-                    setManualCycleLength(setupData?.avg_cycle_length_days || 28)
-                    setManualPeriodLength(setupData?.avg_period_length_days || 5)
-                  }}
-                  className="px-5 py-2.5 rounded-xl border border-[#f0e8ee] text-[#7d6b86] font-medium hover:bg-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleSaveCycleSettings}
-                  disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#ff7eb6] text-white font-medium hover:bg-[#e05896] transition-colors disabled:opacity-50 shadow-sm shadow-[#ff7eb6]/30"
-                >
-                  <Save size={16} /> {saving ? "Saving..." : "Save"}
+                  <X size={20} className="text-gray-500" />
                 </button>
               </div>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-[#7d6b86]">Cycle Length</p>
-                <div className="flex items-end gap-2">
-                  <span className="text-4xl font-bold text-[#3f2b4d]">{currentCycleLength}</span>
-                  <span className="text-[#7d6b86] pb-1">Days</span>
+
+              <div className="mb-6">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full py-4 border-2 border-dashed border-pink-300 rounded-2xl flex items-center justify-center gap-2 text-pink-600 font-medium hover:bg-pink-50 transition-colors"
+                >
+                  <Upload size={20} />
+                  {uploading ? "Uploading..." : "Upload Custom Photo"}
+                </button>
+              </div>
+
+              <div className="relative mb-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-400 font-medium">or choose predefined</span>
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-[#7d6b86]">Period Length</p>
-                <div className="flex items-end gap-2">
-                  <span className="text-4xl font-bold text-[#3f2b4d]">{currentPeriodLength}</span>
-                  <span className="text-[#7d6b86] pb-1">Days</span>
-                </div>
-              </div>
-            </div>
-          )}
 
-          {!isEditingCycle && activePhase === "Actual" && (
-            <div className="mt-6 pt-6 border-t border-[#f2d6e4]">
-              <p className="text-sm font-medium text-[#3f2b4d] mb-3">Prediction Method</p>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${predictionMethod === 'smart' ? 'bg-white border-[#ff7eb6] shadow-sm' : 'bg-transparent border-[#f0e8ee] hover:border-[#f2d6e4]'}`}>
-                  <input 
-                    type="radio" 
-                    name="predictionMethod" 
-                    checked={predictionMethod === 'smart'}
-                    onChange={() => setPredictionMethod('smart')}
-                    className="mt-1 accent-[#ff7eb6]"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-[#3f2b4d] flex items-center gap-1.5">
-                      <span className="text-[#ff7eb6]">🌟</span> Smart Prediction
-                    </p>
-                    <p className="text-xs text-[#7d6b86] mt-1 leading-relaxed">
-                      Blends your actual average with AI dataset to reduce variations. (Recommended)
-                    </p>
-                  </div>
-                </label>
-                
-                <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${predictionMethod === 'strict' ? 'bg-white border-[#ff7eb6] shadow-sm' : 'bg-transparent border-[#f0e8ee] hover:border-[#f2d6e4]'}`}>
-                  <input 
-                    type="radio" 
-                    name="predictionMethod" 
-                    checked={predictionMethod === 'strict'}
-                    onChange={() => setPredictionMethod('strict')}
-                    className="mt-1 accent-[#ff7eb6]"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-[#3f2b4d] flex items-center gap-1.5">
-                      <span>📊</span> Strict Average
-                    </p>
-                    <p className="text-xs text-[#7d6b86] mt-1 leading-relaxed">
-                      Uses 100% pure mathematical average from your past history.
-                    </p>
-                  </div>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {!isEditingCycle && (
-            <div className="mt-6 pt-5 border-t border-[#f2d6e4] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {activePhase === "Actual" && <span className="bg-[#eef5ff] text-[#275ea3] border border-[#d7e7ff] text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1.5"><span className="text-sm">📊</span> Calculated from actual data</span>}
-                {activePhase === "Manual" && <span className="bg-[#fff0de] text-[#9a5a08] border border-[#ffdcbc] text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1.5"><span className="text-sm">✍️</span> Custom manual entry</span>}
-                {activePhase === "AI" && <span className="bg-[#f6f3f8] text-[#6e5c78] border border-[#ebe3f1] text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1.5"><span className="text-sm">🤖</span> AI Predicted Default</span>}
-              </div>
-              
-              {activePhase === "Actual" && (
-                <p className="text-xs text-[#7d6b86]">Based on your last {completedCycles.length} cycles</p>
-              )}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* NEW CARD: My Goal (Mode Switcher) */}
-      <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-[#3f2b4d] flex items-center gap-2">
-            <Target className="text-[#ff7eb6]" size={22} />
-            My Goal
-          </h2>
-          <p className="text-sm text-[#7d6b86] mt-1">Select your primary focus to personalize your experience.</p>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button 
-            onClick={() => handleUpdateGoal("track_cycle")}
-            disabled={updatingGoal}
-            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
-              setupData?.app_goal === "track_cycle" 
-                ? "bg-[#fff0f6] border-[#ff7eb6] shadow-sm" 
-                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-              setupData?.app_goal === "track_cycle" ? "bg-white text-[#ff7eb6]" : "bg-[#faf6f8] text-[#7d6b86]"
-            }`}>
-              <Calendar size={24} />
-            </div>
-            <p className={`font-bold text-sm ${setupData?.app_goal === "track_cycle" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Track Cycle</p>
-            <p className="text-[10px] text-[#b0a0b5] mt-1">Log periods & symptoms</p>
-          </button>
-
-          <button 
-            onClick={() => handleUpdateGoal("conceive")}
-            disabled={updatingGoal}
-            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
-              setupData?.app_goal === "conceive" 
-                ? "bg-[#fff0f6] border-[#ff7eb6] shadow-sm" 
-                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-              setupData?.app_goal === "conceive" ? "bg-white text-[#ff7eb6]" : "bg-[#faf6f8] text-[#7d6b86]"
-            }`}>
-              <Heart size={24} />
-            </div>
-            <p className={`font-bold text-sm ${setupData?.app_goal === "conceive" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Conceive</p>
-            <p className="text-[10px] text-[#b0a0b5] mt-1">Track ovulation window</p>
-          </button>
-
-          <button 
-            onClick={() => {
-              if (setupData?.app_goal === "track_pregnancy") return
-              setShowPregnancyModal(true)
-            }}
-            disabled={updatingGoal}
-            className={`flex flex-col items-center text-center p-6 rounded-2xl border-2 transition-all ${
-              setupData?.app_goal === "track_pregnancy" 
-                ? "bg-[#f7f1ff] border-[#a78bfa] shadow-sm" 
-                : "bg-white border-[#f0e8ee] hover:border-[#f2d6e4]"
-            }`}
-          >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-              setupData?.app_goal === "track_pregnancy" ? "bg-white text-[#a78bfa]" : "bg-[#faf6f8] text-[#7d6b86]"
-            }`}>
-              <Baby size={24} />
-            </div>
-            <p className={`font-bold text-sm ${setupData?.app_goal === "track_pregnancy" ? "text-[#3f2b4d]" : "text-[#7d6b86]"}`}>Track Pregnancy</p>
-            <p className="text-[10px] text-[#b0a0b5] mt-1">Follow baby's growth</p>
-          </button>
-        </div>
-      </section>
-
-      {/* CARD 3: Data Privacy & Export */}
-      <section className="bg-white rounded-3xl p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
-        <h2 className="text-xl font-bold text-[#3f2b4d] mb-6 flex items-center gap-2">
-          <ShieldAlert className="text-[#b06a94]" size={22} />
-          Data & Privacy
-        </h2>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-[#f0e8ee] rounded-2xl">
-            <div>
-              <p className="font-semibold text-[#3f2b4d]">Export my data</p>
-              <p className="text-sm text-[#7d6b86]">Download a copy of your health logs.</p>
-            </div>
-            <button className="p-2 text-[#7d6b86] hover:text-[#ff7eb6] hover:bg-[#fff0f6] rounded-xl transition-colors">
-              <Download size={20} />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border border-red-100 bg-red-50/30 rounded-2xl">
-            <div>
-              <p className="font-semibold text-red-600">Delete Account</p>
-              <p className="text-sm text-red-500/70">Permanently delete all your data.</p>
-            </div>
-            <button className="px-4 py-2 bg-white border border-red-200 text-red-600 text-sm font-medium rounded-xl hover:bg-red-50 transition-colors flex items-center gap-2">
-              <Trash2 size={16} /> Delete
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Pregnancy Setup Modal */}
-      {showPregnancyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3f2b4d]/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-            <div className="relative p-8 text-center">
-              <button 
-                onClick={() => setShowPregnancyModal(false)}
-                className="absolute top-6 right-6 p-2 text-[#7d6b86] hover:bg-[#faf6f8] rounded-full transition-colors"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="w-20 h-20 bg-[#f7f1ff] text-[#a78bfa] rounded-3xl flex items-center justify-center mx-auto mb-6 rotate-3">
-                <Baby size={40} />
-              </div>
-
-              <h3 className="text-2xl font-extrabold text-[#3f2b4d] mb-2">Pregnancy Tracking</h3>
-              <p className="text-[#7d6b86] mb-8">Tell us your due date to customize your dashboard with baby's growth and health tips.</p>
-
-              <div className="space-y-6 text-left">
-                <div>
-                  <label className="block text-sm font-bold text-[#3f2b4d] mb-2 ml-1">Expected Due Date</label>
-                  <input 
-                    type="date" 
-                    value={pregnancyDueDate}
-                    onChange={(e) => setPregnancyDueDate(e.target.value)}
-                    className="w-full bg-[#faf6f8] border-2 border-transparent focus:border-[#a78bfa]/20 focus:bg-white rounded-2xl p-4 text-[#3f2b4d] outline-none transition-all"
-                  />
-                  <p className="text-[10px] text-[#b0a0b5] mt-2 ml-1 flex items-start gap-1">
-                    <Info size={12} className="shrink-0 mt-0.5" />
-                    If you don't know your due date, it's typically 40 weeks from the first day of your last period.
-                  </p>
-                </div>
-
-                <button 
-                  onClick={() => handleUpdateGoal("track_pregnancy", pregnancyDueDate)}
-                  disabled={!pregnancyDueDate || updatingGoal}
-                  className="w-full bg-gradient-to-r from-[#a78bfa] to-[#ff7eb6] hover:opacity-90 text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {updatingGoal ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Start Pregnancy Mode</span>
-                      <ChevronRight size={20} />
-                    </>
-                  )}
-                </button>
+              <div className="grid grid-cols-3 gap-4">
+                {PREDEFINED_AVATARS.map((avatar) => (
+                  <button
+                    key={avatar.id}
+                    onClick={() => handleSelectPredefined(avatar.id)}
+                    disabled={uploading}
+                    className={`p-4 rounded-2xl border-2 transition-all ${
+                      selectedAvatarId === avatar.id 
+                        ? 'border-pink-500 bg-pink-50' 
+                        : 'border-gray-100 hover:border-pink-300 hover:bg-pink-50/50'
+                    } disabled:opacity-50`}
+                  >
+                    <img 
+                      src={avatar.url} 
+                      alt={avatar.name}
+                      className="w-16 h-16 mx-auto rounded-full"
+                    />
+                    <p className="mt-2 text-xs text-gray-600 font-medium text-center">{avatar.name}</p>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Main Content */}
+      <div className="max-w-2xl mx-auto p-4 space-y-6 pt-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Your Profile</h1>
+          <p className="text-gray-500 mt-2">Manage your account and health settings</p>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2 p-1 bg-white rounded-2xl shadow-sm border border-pink-100">
+          {[
+            { id: "profile", label: "Profile", icon: AtSign },
+            { id: "health", label: "Health", icon: Heart },
+            { id: "settings", label: "Settings", icon: Settings },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
+                activeTab === tab.id
+                  ? 'bg-pink-500 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-pink-50'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="bg-white rounded-3xl p-8 shadow-lg shadow-pink-100/50 border border-pink-100">
+            {/* Avatar Section */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="relative group">
+                <div className="w-28 h-28 rounded-full bg-gradient-to-br from-pink-400 to-violet-400 flex items-center justify-center text-white text-4xl font-bold shadow-xl overflow-hidden ring-4 ring-white">
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    displayName.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <button
+                  onClick={() => setIsEditingAvatar(true)}
+                  className="absolute bottom-0 right-0 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-pink-500 hover:bg-pink-50 hover:scale-110 transition-all border-2 border-pink-100"
+                >
+                  <Camera size={18} />
+                </button>
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 mt-4">{displayName}</h2>
+              <p className="text-gray-500 text-sm flex items-center gap-1 mt-1">
+                <Mail size={14} />
+                {email}
+              </p>
+              {joinedAt && (
+                <p className="text-xs text-pink-400 mt-2">
+                  Member since {new Date(joinedAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+
+            {/* Username Field */}
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <AtSign size={16} className="text-pink-500" />
+                  Username
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={handleUsernameChange}
+                    placeholder="Choose your unique username"
+                    disabled={isCooldownActive}
+                    className={`w-full border border-pink-100 p-4 pl-12 rounded-2xl focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all text-gray-800 bg-white ${
+                      isCooldownActive ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">@</span>
+                </div>
+                
+                {usernameError && (
+                  <p className="mt-2 text-sm text-red-500 flex items-center gap-1.5">
+                    <AlertCircle size={14} />
+                    {usernameError}
+                  </p>
+                )}
+                
+                {isCooldownActive && (
+                  <p className="mt-2 text-sm text-amber-600 flex items-center gap-1.5 bg-amber-50 p-3 rounded-xl">
+                    <Info size={14} />
+                    Username can be changed again in <strong>{cooldownDays} days</strong>
+                  </p>
+                )}
+                
+                {!isCooldownActive && !usernameError && (
+                  <p className="mt-2 text-xs text-gray-400">
+                    Username can only be changed once every 3 months. Use 3-20 characters (letters, numbers, underscores).
+                  </p>
+                )}
+              </div>
+
+              {/* Badges */}
+              {badges.length > 0 && (
+                <div className="pt-4 border-t border-pink-50">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Badges</label>
+                  <div className="flex flex-wrap gap-2">
+                    {badges.map((badge) => (
+                      <span 
+                        key={badge}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-pink-50 to-violet-50 rounded-full text-sm font-medium border border-pink-100"
+                      >
+                        {badge === "verified_doctor" && <span className="text-blue-500">🩺</span>}
+                        {badge === "admin" && <span className="text-amber-500">👑</span>}
+                        {badge === "1_year_veteran" && <span className="text-purple-500">🌟</span>}
+                        <span className="text-gray-700">
+                          {badge === "verified_doctor" && "Verified Doctor"}
+                          {badge === "admin" && "Admin"}
+                          {badge === "1_year_veteran" && "1 Year Veteran"}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Health Tab */}
+        {activeTab === "health" && (
+          <div className="space-y-4">
+            {/* Health Data Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-pink-100">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                  <Heart size={20} className="text-pink-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Health Data</h3>
+                  <p className="text-sm text-gray-500">Track your body metrics</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Weight */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                    <Scale size={14} className="text-gray-400" />
+                    Weight (kg)
+                  </label>
+                  <input
+                    type="number"
+                    value={weightKg}
+                    onChange={(e) => setWeightKg(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="70"
+                    min="1"
+                    max="300"
+                    className="w-full border border-pink-100 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300 text-gray-800"
+                  />
+                </div>
+
+                {/* Height */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1.5">
+                    <Ruler size={14} className="text-gray-400" />
+                    Height (cm)
+                  </label>
+                  <input
+                    type="number"
+                    value={heightCm}
+                    onChange={(e) => setHeightCm(e.target.value ? Number(e.target.value) : "")}
+                    placeholder="165"
+                    min="50"
+                    max="250"
+                    className="w-full border border-pink-100 p-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-300 text-gray-800"
+                  />
+                </div>
+              </div>
+
+              {/* BMI Display */}
+              {bmi && bmiCategory && (
+                <div className="bg-gradient-to-r from-pink-50 to-violet-50 rounded-2xl p-4 border border-pink-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Your BMI</p>
+                      <p className="text-3xl font-bold text-gray-800">{bmi}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-block px-4 py-2 rounded-full text-sm font-medium bg-white shadow-sm ${bmiCategory.color}`}>
+                        {bmiCategory.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl p-5 border border-pink-100 shadow-sm">
+                <div className="flex items-center gap-2 text-pink-500 mb-2">
+                  <Scale size={18} />
+                  <span className="text-sm font-medium">Weight</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {weightKg ? `${weightKg} kg` : "Not set"}
+                </p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-pink-100 shadow-sm">
+                <div className="flex items-center gap-2 text-violet-500 mb-2">
+                  <Ruler size={18} />
+                  <span className="text-sm font-medium">Height</span>
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {heightCm ? `${heightCm} cm` : "Not set"}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === "settings" && (
+          <div className="space-y-4">
+            {/* Cycle Settings Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-pink-100">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                  <Activity size={20} className="text-violet-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Cycle Settings</h3>
+                  <p className="text-sm text-gray-500">Customize your tracking experience</p>
+                </div>
+              </div>
+
+              {/* Irregular Mode Toggle */}
+              <div className="flex items-center justify-between py-4 border-b border-gray-100">
+                <div>
+                  <p className="font-medium text-gray-800">Irregular Cycle Mode</p>
+                  <p className="text-sm text-gray-500">Enable if you have PCOS or irregular periods</p>
+                </div>
+                <button
+                  onClick={() => setHasPcosOrIrregular(!hasPcosOrIrregular)}
+                  className={`relative w-14 h-8 rounded-full transition-colors ${
+                    hasPcosOrIrregular ? 'bg-pink-500' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      hasPcosOrIrregular ? 'translate-x-6' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Prediction Mode */}
+              <div className="py-4 border-b border-gray-100">
+                <label className="block font-medium text-gray-800 mb-4">Prediction Mode</label>
+                <div className="flex flex-col gap-4">
+                  {/* Smart Prediction Card */}
+                  <button
+                    onClick={() => setPredictionMode('smart')}
+                    className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
+                      predictionMode === 'smart'
+                        ? 'border-pink-500 bg-pink-50/50 shadow-md'
+                        : 'border-gray-100 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-800">Smart AI Hybrid</h4>
+                        <p className="text-sm text-gray-500 mt-1">Global baseline + weighted personal history. Adapts to your body.</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                        <Sparkles size={20} className="text-violet-500" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Regular Calendar Card */}
+                  <button
+                    onClick={() => setPredictionMode('strict')}
+                    className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
+                      predictionMode === 'strict'
+                        ? 'border-pink-500 bg-pink-50/50 shadow-md'
+                        : 'border-gray-100 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-800">Regular Calendar</h4>
+                        <p className="text-sm text-gray-500 mt-1">Pure personal history. Simple average of your last cycles.</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Calendar size={20} className="text-blue-500" />
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Fixed Number Card */}
+                  <button
+                    onClick={() => setPredictionMode('fixed')}
+                    className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
+                      predictionMode === 'fixed'
+                        ? 'border-pink-500 bg-pink-50/50 shadow-md'
+                        : 'border-gray-100 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-800">Fixed Number</h4>
+                        <p className="text-sm text-gray-500 mt-1">User-defined cycle length. You control the prediction.</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <Activity size={20} className="text-emerald-500" />
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Fixed Number Input */}
+                {predictionMode === 'fixed' && (
+                  <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                    <label className="block font-medium text-gray-800 mb-2">
+                      Your Cycle Length (days)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="21"
+                        max="45"
+                        value={manualCycleLength}
+                        onChange={(e) => setManualCycleLength(Number(e.target.value))}
+                        className="w-24 px-4 py-2 border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 text-gray-800 bg-white"
+                      />
+                      <span className="text-gray-500">days</span>
+                    </div>
+                    <p className="text-xs text-emerald-600 mt-2">
+                      Standard range: 21-45 days. Default is 28 days.
+                    </p>
+                  </div>
+                )}
+
+                {/* Live Preview */}
+                <div className="mt-4 p-4 bg-gradient-to-r from-pink-50 to-violet-50 rounded-xl border border-pink-200">
+                  <p className="text-sm font-medium text-gray-800">
+                    Current Mode: <span className="text-pink-600">{predictionMode === 'smart' ? 'Smart AI Hybrid' : predictionMode === 'strict' ? 'Regular Calendar' : 'Fixed Number'}</span>
+                  </p>
+                  {predictionData ? (
+                    predictionData.has_enough_data ? (
+                      <div className="text-xs text-gray-500 mt-2 space-y-1">
+                        <p>
+                          Estimated Next Period: <strong className="text-pink-600">{predictionData.predicted_days_remaining} days</strong>
+                          {predictionData.accuracy_buffer && <span> (±{predictionData.accuracy_buffer} days)</span>}
+                        </p>
+                        {predictionData.mode_label && (
+                          <p className="text-gray-400">Method: {predictionData.mode_label}</p>
+                        )}
+                        {predictionData.warning_message && (
+                          <p className="text-amber-600">{predictionData.warning_message}</p>
+                        )}
+                        {predictionData.is_irregular_adjusted && (
+                          <p className="text-pink-600">Adjusted for irregular cycles</p>
+                        )}
+                        {predictionData.manual_cycle_length && (
+                          <p className="text-emerald-600">Using your custom: {predictionData.manual_cycle_length} days</p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-600 mt-2">
+                        {predictionData.message} — Log more periods for accurate predictions
+                      </p>
+                    )
+                  ) : predictionLoading ? (
+                    <p className="text-xs text-gray-400 mt-2">Calculating...</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Estimated Next Period: {predictionMode === 'smart' ? '12 days (Hybrid AI)' : predictionMode === 'strict' ? '14 days (From history)' : `${manualCycleLength} days (Fixed)`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Notifications Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-pink-100">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Bell size={20} className="text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Notifications</h3>
+                  <p className="text-sm text-gray-500">Manage your reminders</p>
+                </div>
+              </div>
+
+              {/* Enable Notifications Toggle */}
+              <div className="flex items-center justify-between py-4 border-b border-gray-100">
+                <div>
+                  <p className="font-medium text-gray-800">Enable Notifications</p>
+                  <p className="text-sm text-gray-500">Get reminders before your period</p>
+                </div>
+                <button
+                  onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                  className={`relative w-14 h-8 rounded-full transition-colors ${
+                    notificationsEnabled ? 'bg-pink-500' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      notificationsEnabled ? 'translate-x-6' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Reminder Days */}
+              {notificationsEnabled && (
+                <div className="py-4">
+                  <label className="block font-medium text-gray-800 mb-2">
+                    Remind me {reminderDays} days before
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="7"
+                    value={reminderDays}
+                    onChange={(e) => setReminderDays(Number(e.target.value))}
+                    className="w-full h-2 bg-pink-100 rounded-lg appearance-none cursor-pointer accent-pink-500"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>1 day</span>
+                    <span>7 days</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Privacy & Security Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-pink-100">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <ShieldCheck size={20} className="text-purple-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Privacy & Security</h3>
+                  <p className="text-sm text-gray-500">Manage how your data is handled</p>
+                </div>
+              </div>
+
+              {/* Share Anonymous Data Toggle */}
+              <div className="flex items-start justify-between py-4 border-b border-gray-100 gap-4">
+                <div>
+                  <p className="font-medium text-gray-800 flex items-center gap-2">
+                    Share anonymous data for AI
+                    <Sparkles size={16} className="text-pink-500" />
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Allow our machine learning models to learn from your cycle lengths to improve predictions for everyone. Your data is stripped of all personal identifiers.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShareAnonymousData(!shareAnonymousData)}
+                  className={`relative w-14 h-8 shrink-0 rounded-full transition-colors ${
+                    shareAnonymousData ? 'bg-pink-500' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      shareAnonymousData ? 'translate-x-6' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Anonymous Mode Toggle */}
+              <div className="flex items-start justify-between py-4 gap-4">
+                <div>
+                  <p className="font-medium text-gray-800">Enable Anonymous Mode</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Disconnect your email and identity from your health logs. Note: You won't be able to recover your data if you lose your device.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAnonymousMode(!anonymousMode)}
+                  className={`relative w-14 h-8 shrink-0 rounded-full transition-colors ${
+                    anonymousMode ? 'bg-gray-800' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      anonymousMode ? 'translate-x-6' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Save Button */}
+        <div className="flex gap-3 pt-4">
+          <button 
+            onClick={() => {
+              setUsername('')
+              setAvatarUrl('')
+              setWeightKg('')
+              setHeightCm('')
+              setHasPcosOrIrregular(false)
+              setPredictionMode('smart')
+              setManualCycleLength(28)
+              setNotificationsEnabled(true)
+              setReminderDays(3)
+              setShareAnonymousData(true)
+              setAnonymousMode(false)
+              setUsernameError(null)
+              loadData()
+            }}
+            className="flex-1 py-3.5 rounded-full border border-pink-200 text-gray-600 font-medium hover:bg-pink-50 transition-colors flex items-center justify-center gap-2"
+          >
+            <RotateCcw size={16} />
+            Reset
+          </button>
+          <button 
+            onClick={handleSaveAll}
+            disabled={saving || !!usernameError}
+            className="flex-[2] py-3.5 rounded-full bg-gradient-to-r from-pink-500 to-pink-600 text-white font-medium hover:from-pink-600 hover:to-pink-700 transition-all shadow-lg shadow-pink-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

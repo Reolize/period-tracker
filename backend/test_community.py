@@ -20,7 +20,7 @@ import sys
 
 # Configuration - modify these or use environment variables
 # Option 1: Modify this line directly
-BASE_URL = os.getenv("API_BASE_URL", "https://tasty-zebras-move.loca.lt")
+BASE_URL = os.getenv("API_BASE_URL", "https://thin-rice-open.loca.lt")
 
 # Option 2: Uncomment and modify this for Ngrok
 # BASE_URL = "https://your-ngrok-url.ngrok.io"
@@ -31,8 +31,8 @@ print(f"🔧 Using API URL: {BASE_URL}")
 print(f"   Set API_BASE_URL env var to change this\n")
 
 # Test credentials (you need to register/login first to get a valid token)
-TEST_EMAIL = "test@example.com"
-TEST_PASSWORD = "testpassword123"
+TEST_EMAIL = "admin@periodtracker.com"
+TEST_PASSWORD = "admin1234"
 
 def get_auth_token():
     """Get authentication token by logging in"""
@@ -309,6 +309,185 @@ def test_moderation_blocking(token):
         print("⚠️ AI Moderation might not be working - content was not blocked")
         return False
 
+def test_list_posts_with_sort_filter(token, sort_by="latest", timeframe="all"):
+    """Test listing posts with sort and filter parameters"""
+    print(f"\n📋 Testing LIST POSTS with sort='{sort_by}', timeframe='{timeframe}'...")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "ngrok-skip-browser-warning": "69420"
+    }
+    
+    params = {
+        "page": 1,
+        "per_page": 10,
+        "sort_by": sort_by,
+        "timeframe": timeframe
+    }
+    
+    try:
+        response = requests.get(
+            f"{API_URL}/posts",
+            headers=headers,
+            params=params
+        )
+        
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            posts = data.get('posts', [])
+            total = data.get('total', 0)
+            print(f"✅ Found {total} posts sorted by '{sort_by}' (timeframe: {timeframe})")
+            
+            for post in posts[:3]:
+                print(f"   • [{post.get('category')}] {post.get('title')[:40]}...")
+                print(f"     Reactions: {sum(post.get('reactions', {}).values())} | Comments: {post.get('comment_count')}")
+            
+            return posts
+        else:
+            print(f"❌ Failed to list posts")
+            print(f"Response: {response.text}")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return []
+
+def test_list_my_posts(token):
+    """Test listing current user's posts"""
+    print(f"\n👤 Testing LIST MY POSTS...")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "ngrok-skip-browser-warning": "69420"
+    }
+    
+    try:
+        response = requests.get(
+            f"{API_URL}/my-posts",
+            headers=headers
+        )
+        
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            posts = data.get('posts', [])
+            total = data.get('total', 0)
+            print(f"✅ Found {total} posts by current user")
+            
+            for post in posts[:3]:
+                print(f"   • [{post.get('category')}] {post.get('title')[:40]}...")
+            
+            return posts
+        else:
+            print(f"❌ Failed to list my posts")
+            print(f"Response: {response.text}")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return []
+
+def test_get_notifications(token):
+    """Test getting notifications"""
+    print(f"\n🔔 Testing GET NOTIFICATIONS...")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "ngrok-skip-browser-warning": "69420"
+    }
+    
+    try:
+        response = requests.get(
+            f"{API_URL}/notifications",
+            headers=headers
+        )
+        
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            notifications = data.get('notifications', [])
+            unread_count = data.get('unread_count', 0)
+            print(f"✅ Found {len(notifications)} notifications ({unread_count} unread)")
+            
+            for notif in notifications[:3]:
+                print(f"   • [{notif.get('type')}] {notif.get('message')[:50]}...")
+                print(f"     Read: {notif.get('is_read')} | Created: {notif.get('created_at')}")
+            
+            return notifications
+        else:
+            print(f"❌ Failed to get notifications")
+            print(f"Response: {response.text}")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return []
+
+def test_mark_notification_read(token, notification_id):
+    """Test marking a notification as read"""
+    print(f"\n✅ Testing MARK NOTIFICATION READ: ID {notification_id}")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "ngrok-skip-browser-warning": "69420"
+    }
+    
+    try:
+        response = requests.put(
+            f"{API_URL}/notifications/{notification_id}/read",
+            headers=headers
+        )
+        
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ {data.get('message', 'Notification marked as read')}")
+            return True
+        else:
+            print(f"❌ Failed to mark notification as read")
+            print(f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
+def test_mark_all_notifications_read(token):
+    """Test marking all notifications as read"""
+    print(f"\n✅ Testing MARK ALL NOTIFICATIONS READ...")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "ngrok-skip-browser-warning": "69420"
+    }
+    
+    try:
+        response = requests.put(
+            f"{API_URL}/notifications/read-all",
+            headers=headers
+        )
+        
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ {data.get('message', 'All notifications marked as read')}")
+            print(f"   Updated: {data.get('updated_count', 0)} notifications")
+            return True
+        else:
+            print(f"❌ Failed to mark all notifications as read")
+            print(f"Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return False
+
 def run_all_tests():
     """Run complete test suite"""
     print("=" * 60)
@@ -369,11 +548,25 @@ def run_all_tests():
     # Test 5: List posts by category
     test_list_posts(token, category="PCOS")
     
-    # Test 6: Get post detail (if we have any posts)
+    # Test 6: Sort and filter tests (NEW from mega update)
+    print("\n" + "-" * 60)
+    print("🆕 NEW FEATURES: Sort & Filter Tests")
+    print("-" * 60)
+    test_list_posts_with_sort_filter(token, sort_by="latest", timeframe="all")
+    test_list_posts_with_sort_filter(token, sort_by="most_reactions", timeframe="7d")
+    test_list_posts_with_sort_filter(token, sort_by="most_comments", timeframe="30d")
+    
+    # Test 7: My Posts endpoint (NEW from mega update)
+    print("\n" + "-" * 60)
+    print("🆕 NEW FEATURE: My Posts Endpoint")
+    print("-" * 60)
+    my_posts = test_list_my_posts(token)
+    
+    # Test 8: Get post detail (if we have any posts)
     if created_posts:
         test_get_post_detail(token, created_posts[0])
     
-    # Test 7: Add comments
+    # Test 9: Add comments (triggers notifications)
     if created_posts:
         test_add_comment(
             token,
@@ -389,7 +582,7 @@ def run_all_tests():
             True  # Anonymous comment
         )
     
-    # Test 8: Add reactions
+    # Test 10: Add reactions (triggers notifications)
     if created_posts:
         test_add_reaction(token, created_posts[0], "hug")
         test_add_reaction(token, created_posts[0], "support")
@@ -397,7 +590,20 @@ def run_all_tests():
         # Test removing reaction
         test_remove_reaction(token, created_posts[0])
     
-    # Test 9: AI Moderation (optional - only if you want to test blocking)
+    # Test 11: Notifications (NEW from mega update)
+    print("\n" + "-" * 60)
+    print("🆕 NEW FEATURE: Notification System")
+    print("-" * 60)
+    notifications = test_get_notifications(token)
+    if notifications:
+        # Mark first notification as read
+        test_mark_notification_read(token, notifications[0].get('id'))
+    # Mark all as read
+    test_mark_all_notifications_read(token)
+    # Check notifications again
+    test_get_notifications(token)
+    
+    # Test 12: AI Moderation (optional - only if you want to test blocking)
     # Uncomment to test:
     # test_moderation_blocking(token)
     

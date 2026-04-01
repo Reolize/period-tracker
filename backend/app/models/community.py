@@ -75,16 +75,18 @@ class Post(Base):
 
 
 class Comment(Base):
-    """Comment on a post with anonymous support."""
+    """Comment on a post with anonymous support and nested replies."""
     
     __tablename__ = "comments"
     
     id = Column(Integer, primary_key=True, index=True)
     post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    parent_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True, index=True)  # For nested replies
     
     content = Column(Text, nullable=False)
     is_anonymous = Column(Boolean, default=False, nullable=False, server_default="false")
+    is_deleted = Column(Boolean, default=False, nullable=False, server_default="false")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -92,6 +94,9 @@ class Comment(Base):
     # Relationships
     post = relationship("Post", back_populates="comments")
     user = relationship("User")
+    parent = relationship("Comment", remote_side=[id], back_populates="replies")
+    replies = relationship("Comment", back_populates="parent", cascade="all, delete-orphan")
+    reactions = relationship("CommentReaction", back_populates="comment", cascade="all, delete-orphan")
 
 
 class Reaction(Base):
@@ -116,3 +121,93 @@ class Reaction(Base):
     # Relationships
     post = relationship("Post", back_populates="reactions")
     user = relationship("User")
+
+
+class CommentReactionType(str, Enum):
+    like = "like"  # 👍
+    heart = "heart"  # ❤️
+    hug = "hug"  # 🫂
+    support = "support"  # 💪
+
+
+class CommentReaction(Base):
+    """Reactions to comments (like Reddit upvotes or emoji reactions)."""
+    
+    __tablename__ = "comment_reactions"
+    __table_args__ = (
+        UniqueConstraint("comment_id", "user_id", name="uq_comment_reactions_comment_user"),
+    )
+    
+    id = Column(Integer, primary_key=True, index=True)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    reaction_type = Column(
+        SAEnum(CommentReactionType, name="comment_reaction_type", native_enum=False),
+        nullable=False,
+    )
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    comment = relationship("Comment", back_populates="reactions")
+    user = relationship("User")
+
+
+class NotificationType(str, Enum):
+    reaction = "reaction"
+    comment = "comment"
+    cycle_prediction = "cycle_prediction"
+    symptom_alert = "symptom_alert"
+    system = "system"
+
+
+class Notification(Base):
+    """Unified notification system for all app notifications."""
+    
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)  # Recipient
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)  # Who performed the action (nullable for system notifications)
+    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=True, index=True)  # Optional: related post
+    
+    type = Column(
+        SAEnum(NotificationType, name="notification_type", native_enum=False),
+        nullable=False,
+    )
+    title = Column(String(100), nullable=False)  # Short title
+    message = Column(String(500), nullable=False)  # Full message
+    link = Column(String(200), nullable=True)  # Optional navigation link
+    is_read = Column(Boolean, default=False, nullable=False, server_default="false")
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], back_populates="notifications")
+    sender = relationship("User", foreign_keys=[sender_id])
+    post = relationship("Post")
+
+
+class NotificationSetting(Base):
+    """Table for storing user notification preferences"""
+    __tablename__ = "notification_settings"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    
+    # Cycle Alerts
+    period_predictions = Column(Boolean, default=True, nullable=False)
+    late_period = Column(Boolean, default=True, nullable=False)
+    
+    # Fertility & Ovulation
+    fertile_window = Column(Boolean, default=True, nullable=False)
+    
+    # Daily Reminders
+    log_symptoms = Column(Boolean, default=True, nullable=False)
+    drink_water = Column(Boolean, default=True, nullable=False)
+    
+    # AI Insights
+    ai_patterns = Column(Boolean, default=True, nullable=False)
+    
+    # Relationship
+    user = relationship("User", back_populates="notification_settings")

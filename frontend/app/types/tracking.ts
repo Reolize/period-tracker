@@ -1,5 +1,18 @@
 export type ISODate = `${number}-${number}-${number}` // YYYY-MM-DD
 
+// ---- User ----
+export interface User {
+  id: number
+  email: string
+  is_admin: boolean
+  profile_pic_url?: string | null
+  username?: string | null
+  avatar_url?: string | null
+  last_username_change?: string | null
+  joined_at?: string | null
+  badges?: string[]
+}
+
 // ---- UserSetup ----
 export type ContraceptionMethod =
   | "none"
@@ -91,7 +104,11 @@ export type ReactionType = "hug" | "me_too" | "support" | "celebrate"
 export interface AuthorInfo {
   id: number | null
   display_name: string
+  username?: string | null
+  avatar_url?: string | null
   is_anonymous: boolean
+  profile_pic_url?: string | null
+  badges?: string[]
 }
 
 export interface ReactionSummary {
@@ -101,11 +118,26 @@ export interface ReactionSummary {
   celebrate: number
 }
 
+export type CommentReactionType = "like" | "heart" | "hug" | "support"
+
+export interface CommentReactionSummary {
+  like: number
+  heart: number
+  hug: number
+  support: number
+}
+
 export interface Comment {
   id: number
   content: string
   author: AuthorInfo
   created_at: string
+  parent_id?: number | null
+  replies?: Comment[]
+  reactions?: CommentReactionSummary
+  user_reaction?: CommentReactionType | null
+  reply_count?: number
+  is_deleted?: boolean
 }
 
 export interface Post {
@@ -115,6 +147,7 @@ export interface Post {
   category: PostCategory
   author: AuthorInfo
   comment_count: number
+  comments?: Comment[]  // Inline comments for feed view
   reactions: ReactionSummary
   user_reaction: ReactionType | null
   is_author?: boolean  // Indicates if current user is the author
@@ -124,5 +157,23 @@ export interface Post {
 
 export interface PostDetail extends Post {
   comments: Comment[]
+}
+
+// ---- Notifications ----
+export type NotificationType = "reaction" | "comment" | "cycle_prediction" | "symptom_alert" | "system"
+
+export interface NotificationResponse {
+  id: number
+  sender_id?: number | null
+  sender_name?: string | null
+  sender_profile_pic?: string | null
+  post_id?: number | null
+  post_title?: string | null
+  type: NotificationType
+  title: string
+  message: string
+  link?: string | null
+  is_read: boolean
+  created_at: string
 }
 
