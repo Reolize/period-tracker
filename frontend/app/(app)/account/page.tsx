@@ -57,7 +57,10 @@ export default function AccountPage() {
   const [weightKg, setWeightKg] = useState<number | "">("")
   const [heightCm, setHeightCm] = useState<number | "">("")
   const [hasPcosOrIrregular, setHasPcosOrIrregular] = useState<boolean>(false)
-  const [predictionMode, setPredictionMode] = useState<"smart" | "strict" | "fixed">("smart")
+  // New prediction mode state: "auto" | "regular" | "fixed"
+  const [predictionMode, setPredictionMode] = useState<"auto" | "regular" | "fixed">("auto")
+  // Track if auto prediction is enabled (master toggle)
+  const [isAutoPrediction, setIsAutoPrediction] = useState<boolean>(true)
   
   // Manual cycle length for Fixed Number mode (local state only, saved on Apply)
   const [manualCycleLength, setManualCycleLength] = useState<number>(28)
@@ -65,9 +68,12 @@ export default function AccountPage() {
   const [manualCycleInput, setManualCycleInput] = useState<string>("28")
   const [isApplyingFixed, setIsApplyingFixed] = useState<boolean>(false)
   
+  // Track user's cycle count for tier display
+  const [userCycleCount, setUserCycleCount] = useState<number>(0)
+  
   // Prediction mode edit state
   const [isEditingPredictionMode, setIsEditingPredictionMode] = useState<boolean>(false)
-  const [pendingPredictionMode, setPendingPredictionMode] = useState<"smart" | "strict" | "fixed">("smart")
+  const [pendingPredictionMode, setPendingPredictionMode] = useState<"auto" | "regular" | "fixed">("auto")
   
   // Notification settings
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true)
@@ -102,8 +108,8 @@ export default function AccountPage() {
     }
   }
 
-  // Auto-save prediction mode for Smart/Strict (immediate DB update)
-  async function savePredictionMode(mode: "smart" | "strict" | "fixed", manualLength?: number) {
+  // Auto-save prediction mode - now handles "auto", "regular", "fixed"
+  async function savePredictionMode(mode: "auto" | "regular" | "fixed", manualLength?: number) {
     console.log("[FRONTEND] State changed to:", { mode, manualLength })
     try {
       const payload: any = { prediction_mode: mode }
@@ -120,7 +126,8 @@ export default function AccountPage() {
       
       // Refresh prediction with new saved values
       await fetchPrediction()
-      showToast(`${mode === 'smart' ? 'Smart AI' : mode === 'strict' ? 'Regular Calendar' : 'Fixed Number'} mode activated`, "success")
+      const modeDisplayName = mode === 'auto' ? 'Auto AI Prediction' : mode === 'regular' ? 'Regular Calendar' : 'Fixed Number'
+      showToast(`${modeDisplayName} mode activated`, "success")
     } catch (err: any) {
       console.error("[FRONTEND] Failed to save mode:", err)
       showToast("Failed to save mode. Please try again.", "error")
@@ -188,22 +195,33 @@ export default function AccountPage() {
     await saveProfileSetting("is_anonymous_mode", newValue)
   }
 
-  // Handle Smart/Strict mode selection (auto-save)
-  async function handleSmartOrStrictModeChange(newMode: "smart" | "strict") {
-    console.log(`[FRONTEND] Card clicked: ${newMode}`)
+  // Handle Auto toggle change (master toggle)
+  async function handleAutoToggleChange() {
+    const newAutoValue = !isAutoPrediction
+    setIsAutoPrediction(newAutoValue)
+    
+    if (newAutoValue) {
+      // Turning ON auto - switch to auto mode
+      setPredictionMode('auto')
+      await savePredictionMode('auto')
+    } else {
+      // Turning OFF auto - default to regular calendar as manual override
+      setPredictionMode('regular')
+      await savePredictionMode('regular')
+    }
+  }
+
+  // Handle manual override mode change (when auto is OFF)
+  async function handleManualModeChange(newMode: "regular" | "fixed") {
+    console.log(`[FRONTEND] Manual mode selected: ${newMode}`)
     setPredictionMode(newMode)
-    await savePredictionMode(newMode)
+    if (newMode === 'regular') {
+      await savePredictionMode('regular')
+    }
+    // For fixed mode, just change UI - user will apply the value separately
   }
 
-  // Handle Fixed mode selection (just switch UI, don't save yet)
-  function handleFixedModeSelect() {
-    console.log("[FRONTEND] Fixed mode selected (UI only, not saving yet)")
-    setPredictionMode('fixed')
-    setPendingManualCycleLength(manualCycleLength)
-    setManualCycleInput(String(manualCycleLength))
-  }
-
-  // Enter prediction mode edit mode
+  // Enter prediction mode edit mode (for manual override settings)
   function enterPredictionModeEdit() {
     console.log("[FRONTEND] Entering prediction mode edit mode")
     setIsEditingPredictionMode(true)
@@ -222,9 +240,9 @@ export default function AccountPage() {
     setManualCycleInput(String(manualCycleLength))
   }
 
-  // Select mode while in edit mode (local only)
-  function selectModeInEdit(newMode: "smart" | "strict" | "fixed") {
-    console.log("[FRONTEND] Selecting mode in edit:", newMode)
+  // Select manual mode while in edit mode (local only)
+  function selectManualModeInEdit(newMode: "regular" | "fixed") {
+    console.log("[FRONTEND] Selecting manual mode in edit:", newMode)
     setPendingPredictionMode(newMode)
     if (newMode === 'fixed') {
       setPendingManualCycleLength(manualCycleLength)
@@ -246,11 +264,12 @@ export default function AccountPage() {
         setManualCycleInput(String(clampedValue))
         await savePredictionMode('fixed', clampedValue)
         setPredictionMode('fixed')
+        setIsAutoPrediction(false) // Fixed is a manual mode
       } finally {
         setIsApplyingFixed(false)
       }
     } else {
-      // For smart/strict, just save the mode
+      // For regular mode
       setPredictionMode(pendingPredictionMode)
       await savePredictionMode(pendingPredictionMode)
     }
@@ -336,7 +355,13 @@ export default function AccountPage() {
           setWeightKg(setupRes.weight_kg || "")
           setHeightCm(setupRes.height_cm || "")
           setHasPcosOrIrregular(setupRes.has_pcos_or_irregular || false)
-          setPredictionMode(setupRes.prediction_mode || "smart")
+          // Map legacy modes to new modes if needed
+          const loadedMode = setupRes.prediction_mode || "auto"
+          // Convert old "smart" to "auto", "strict" to "regular"
+          const normalizedMode = loadedMode === "smart" ? "auto" : loadedMode === "strict" ? "regular" : loadedMode
+          setPredictionMode(normalizedMode as "auto" | "regular" | "fixed")
+          // Auto is ON when mode is "auto"
+          setIsAutoPrediction(normalizedMode === "auto")
           setManualCycleLength(setupRes.manual_cycle_length || 28)
           setNotificationsEnabled(setupRes.notifications_enabled !== false)
           setReminderDays(setupRes.reminder_days || 3)
@@ -895,211 +920,69 @@ export default function AccountPage() {
                 </button>
               </div>
 
-              {/* Prediction Mode */}
+              {/* Prediction Mode - New Master Toggle Design */}
               <div className="py-4 border-b border-gray-100">
-                {/* Header with Edit Button */}
+                {/* Header */}
                 <div className="flex items-center justify-between mb-4">
                   <label className="block font-medium text-gray-800">Prediction Mode</label>
-                  {!isEditingPredictionMode && (
+                  {!isEditingPredictionMode && !isAutoPrediction && (
                     <button
                       onClick={enterPredictionModeEdit}
                       className="p-2 rounded-lg hover:bg-pink-50 text-pink-500 transition-colors"
-                      title="Edit prediction mode"
+                      title="Edit manual prediction settings"
                     >
                       <Edit2 size={18} />
                     </button>
                   )}
                 </div>
 
-                {isEditingPredictionMode ? (
-                  /* Edit Mode - Selectable Cards */
-                  <div className="flex flex-col gap-4">
-                    {/* Smart Prediction Card */}
-                    <button
-                      onClick={() => selectModeInEdit('smart')}
-                      className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
-                        pendingPredictionMode === 'smart'
-                          ? 'border-pink-500 bg-pink-50/50 shadow-md'
-                          : 'border-gray-100 bg-white hover:border-pink-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-800">Smart AI Hybrid</h4>
-                          <p className="text-sm text-gray-500 mt-1">Automatically adapts its intelligence based on your data. Uses Global ML for new users, Bayesian blending as you log more cycles, and pure personal history once you have 6+ cycles.</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
-                          <Sparkles size={20} className="text-violet-500" />
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Regular Calendar Card */}
-                    <button
-                      onClick={() => selectModeInEdit('strict')}
-                      className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
-                        pendingPredictionMode === 'strict'
-                          ? 'border-pink-500 bg-pink-50/50 shadow-md'
-                          : 'border-gray-100 bg-white hover:border-pink-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-800">Regular Calendar</h4>
-                          <p className="text-sm text-gray-500 mt-1">Weighted average of your recent cycles with outlier filtering. Removes abnormal lengths (2 SD) and gives recent cycles higher weight.</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <Calendar size={20} className="text-blue-500" />
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Fixed Number Card */}
-                    <button
-                      onClick={() => selectModeInEdit('fixed')}
-                      className={`rounded-2xl p-5 border-2 transition-all cursor-pointer flex flex-col gap-2 hover:shadow-lg text-left ${
-                        pendingPredictionMode === 'fixed'
-                          ? 'border-pink-500 bg-pink-50/50 shadow-md'
-                          : 'border-gray-100 bg-white hover:border-pink-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-800">Fixed Number</h4>
-                          <p className="text-sm text-gray-500 mt-1">User-defined cycle length. You control the prediction.</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                          <Activity size={20} className="text-emerald-500" />
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Fixed Number Input - Only show when fixed is selected in edit mode */}
-                    {pendingPredictionMode === 'fixed' && (
-                      <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                        <label className="block font-medium text-gray-800 mb-2">
-                          Your Cycle Length (days)
-                        </label>
-                        <div className="flex items-center gap-3">
-                          <button
-                            onClick={decrementCycleLength}
-                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 font-bold hover:bg-emerald-100 transition-colors"
-                            type="button"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            value={manualCycleInput}
-                            onChange={(e) => handleManualCycleLengthInput(e.target.value)}
-                            onBlur={handleManualCycleLengthBlur}
-                            className="w-20 px-3 py-2 border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 text-gray-800 bg-white text-center"
-                          />
-                          <button
-                            onClick={incrementCycleLength}
-                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 font-bold hover:bg-emerald-100 transition-colors"
-                            type="button"
-                          >
-                            +
-                          </button>
-                          <span className="text-gray-500">days</span>
-                        </div>
-                        <p className="text-xs text-emerald-600 mt-2">
-                          Standard range: 21-45 days
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Cancel/Apply Buttons */}
-                    <div className="flex gap-3 mt-2">
-                      <button
-                        onClick={cancelPredictionModeEdit}
-                        className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={applyPredictionMode}
-                        disabled={isApplyingFixed}
-                        className="flex-1 py-2.5 rounded-xl bg-pink-500 text-white font-medium hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isApplyingFixed ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Applying...
-                          </>
-                        ) : (
-                          <>
-                            <Save size={16} />
-                            Apply
-                          </>
-                        )}
-                      </button>
+                {/* Master Toggle: Auto AI Prediction */}
+                <div className="flex items-center justify-between py-3 px-4 bg-gradient-to-r from-violet-50 to-pink-50 rounded-xl border border-violet-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                      <Sparkles size={20} className="text-violet-500" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-800 flex items-center gap-2">
+                        Auto AI Prediction
+                        <span className="px-2 py-0.5 bg-violet-500 text-white text-xs rounded-full font-medium">Recommended</span>
+                      </p>
+                      <p className="text-xs text-gray-500">Smart tier-based predictions based on your cycle history</p>
                     </div>
                   </div>
-                ) : (
-                  /* Read-Only Mode - Just show selected card */
-                  <div className="flex flex-col gap-4">
-                    {predictionMode === 'smart' && (
-                      <div className="rounded-2xl p-5 border-2 border-pink-500 bg-pink-50/50 shadow-md">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-lg font-bold text-gray-800">Smart AI Hybrid</h4>
-                            <p className="text-sm text-gray-500 mt-1">Automatically adapts its intelligence based on your data. Uses Global ML for new users, Bayesian blending as you log more cycles, and pure personal history once you have 6+ cycles.</p>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
-                            <Sparkles size={20} className="text-violet-500" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {predictionMode === 'strict' && (
-                      <div className="rounded-2xl p-5 border-2 border-pink-500 bg-pink-50/50 shadow-md">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-lg font-bold text-gray-800">Regular Calendar</h4>
-                            <p className="text-sm text-gray-500 mt-1">Weighted average of your recent cycles with outlier filtering. Removes abnormal lengths (2 SD) and gives recent cycles higher weight.</p>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <Calendar size={20} className="text-blue-500" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {predictionMode === 'fixed' && (
-                      <div className="rounded-2xl p-5 border-2 border-pink-500 bg-pink-50/50 shadow-md">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="text-lg font-bold text-gray-800">Fixed Number</h4>
-                            <p className="text-sm text-gray-500 mt-1">User-defined cycle length. You control the prediction.</p>
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                            <Activity size={20} className="text-emerald-500" />
-                          </div>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-pink-200">
-                          <span className="text-sm text-gray-600">
-                            Cycle length: <strong className="text-emerald-600">{manualCycleLength} days</strong>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  <button
+                    onClick={handleAutoToggleChange}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      isAutoPrediction ? 'bg-violet-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                        isAutoPrediction ? 'translate-x-6' : ''
+                      }`}
+                    />
+                  </button>
+                </div>
 
-                {/* Live Preview - Shows Calculated Cycle Length */}
-                {!isEditingPredictionMode && (
+                {/* When Auto is ON: Show Tier Status */}
+                {isAutoPrediction && (
                   <div className="mt-4 p-4 bg-gradient-to-r from-pink-50 to-violet-50 rounded-xl border border-pink-200">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-gray-500">Selected Mode</p>
-                        <p className="font-medium text-gray-800">
-                          {predictionMode === 'smart' ? 'Smart AI Hybrid' : predictionMode === 'strict' ? 'Regular Calendar' : 'Fixed Number'}
+                        <p className="text-sm font-medium text-gray-700">AI Status</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {predictionData?.mode_label ? (
+                            <span className="inline-flex items-center gap-2">
+                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                              {predictionData.mode_label} active
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">Calculating...</span>
+                          )}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-500">Calculated Cycle Length</p>
+                        <p className="text-sm font-medium text-gray-700">Predicted Length</p>
                         <p className="font-bold text-pink-600 text-lg">
                           {predictionLoading ? (
                             <span className="text-gray-400">...</span>
@@ -1111,6 +994,171 @@ export default function AccountPage() {
                         </p>
                       </div>
                     </div>
+                    {/* Tier explanation tooltip */}
+                    <div className="mt-3 pt-3 border-t border-pink-200/50">
+                      <p className="text-xs text-gray-500">
+                        Our AI automatically selects the best algorithm based on your data:
+                        <span className="block mt-1">• 0-3 cycles: Global ML Model</span>
+                        <span className="block">• 4-5 cycles: Bayesian Hybrid</span>
+                        <span className="block">• 6+ cycles: Personal WMA</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* When Auto is OFF: Show Manual Override Sub-menu */}
+                {!isAutoPrediction && (
+                  <div className="mt-4">
+                    {isEditingPredictionMode ? (
+                      /* Manual Override Edit Mode */
+                      <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-1">Manual Override Options</p>
+                        
+                        {/* Regular Calendar Radio Button */}
+                        <button
+                          onClick={() => selectManualModeInEdit('regular')}
+                          className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                            pendingPredictionMode === 'regular'
+                              ? 'border-pink-500 bg-pink-50'
+                              : 'border-gray-200 bg-white hover:border-pink-200'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                            pendingPredictionMode === 'regular' ? 'border-pink-500' : 'border-gray-300'
+                          }`}>
+                            {pendingPredictionMode === 'regular' && <div className="w-2.5 h-2.5 bg-pink-500 rounded-full" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar size={18} className="text-blue-500" />
+                              <h4 className="font-medium text-gray-800">Regular Calendar (Strict WMA)</h4>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Weighted average of your recent cycles with outlier filtering.
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Fixed Number Radio Button */}
+                        <button
+                          onClick={() => selectManualModeInEdit('fixed')}
+                          className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                            pendingPredictionMode === 'fixed'
+                              ? 'border-pink-500 bg-pink-50'
+                              : 'border-gray-200 bg-white hover:border-pink-200'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 ${
+                            pendingPredictionMode === 'fixed' ? 'border-pink-500' : 'border-gray-300'
+                          }`}>
+                            {pendingPredictionMode === 'fixed' && <div className="w-2.5 h-2.5 bg-pink-500 rounded-full" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Activity size={18} className="text-emerald-500" />
+                              <h4 className="font-medium text-gray-800">Fixed Number</h4>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1">
+                              User-defined cycle length. You control the prediction.
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Fixed Number Input - Only when fixed is selected */}
+                        {pendingPredictionMode === 'fixed' && (
+                          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 mt-2">
+                            <label className="block font-medium text-gray-800 mb-2">
+                              Your Cycle Length (days)
+                            </label>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={decrementCycleLength}
+                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 font-bold hover:bg-emerald-100 transition-colors"
+                                type="button"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={manualCycleInput}
+                                onChange={(e) => handleManualCycleLengthInput(e.target.value)}
+                                onBlur={handleManualCycleLengthBlur}
+                                className="w-20 px-3 py-2 border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-300 text-gray-800 bg-white text-center"
+                              />
+                              <button
+                                onClick={incrementCycleLength}
+                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 font-bold hover:bg-emerald-100 transition-colors"
+                                type="button"
+                              >
+                                +
+                              </button>
+                              <span className="text-gray-500">days</span>
+                            </div>
+                            <p className="text-xs text-emerald-600 mt-2">
+                              Standard range: 21-45 days
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Cancel/Apply Buttons */}
+                        <div className="flex gap-3 mt-2">
+                          <button
+                            onClick={cancelPredictionModeEdit}
+                            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={applyPredictionMode}
+                            disabled={isApplyingFixed}
+                            className="flex-1 py-2.5 rounded-xl bg-pink-500 text-white font-medium hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isApplyingFixed ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Applying...
+                              </>
+                            ) : (
+                              <>
+                                <Save size={16} />
+                                Apply
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Manual Override Read-Only Display */
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <p className="text-sm font-medium text-gray-700 mb-3">Manual Override Active</p>
+                        {predictionMode === 'regular' && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                              <Calendar size={20} className="text-blue-500" />
+                            </div>
+                            <div>
+                              <h4 className="font-medium text-gray-800">Regular Calendar (Strict WMA)</h4>
+                              <p className="text-sm text-gray-500 mt-1">Weighted average of your recent cycles with outlier filtering.</p>
+                            </div>
+                          </div>
+                        )}
+                        {predictionMode === 'fixed' && (
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                              <Activity size={20} className="text-emerald-500" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-800">Fixed Number</h4>
+                              <p className="text-sm text-gray-500 mt-1">User-defined cycle length</p>
+                              <p className="mt-2 text-sm">
+                                Cycle length: <strong className="text-emerald-600">{manualCycleLength} days</strong>
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1252,7 +1300,8 @@ export default function AccountPage() {
               setWeightKg('')
               setHeightCm('')
               setHasPcosOrIrregular(false)
-              setPredictionMode('smart')
+              setPredictionMode('auto')
+              setIsAutoPrediction(true)
               setManualCycleLength(28)
               setPendingManualCycleLength(28)
               setManualCycleInput('28')

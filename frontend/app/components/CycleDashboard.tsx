@@ -26,11 +26,12 @@ type PredictionData = {
   period_length_prediction: number
   cycle_std_dev: number
   period_std_dev: number
-  confidence_score: number
+  confidence_score: number | null
   predicted_ovulation: string
   fertile_window_start: string
   fertile_window_end: string
   health_alerts?: PredictionAlert[] | null
+  prediction_mode?: string
 }
 
 type CycleRow = {
@@ -451,7 +452,9 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
 
   const isUnusuallyLongCycle = latestCycle && !latestCycle.end_date && cycleDay && cycleDay > 45
 
-  const hasNoCycles = cycles.length === 0
+  // Show data if we have cycles OR if we have a valid prediction (for Fixed Number mode)
+  const hasPredictionData = !!prediction?.predicted_next_start
+  const hasNoCycles = cycles.length === 0 && !hasPredictionData
 
   if (loading) {
     return (
@@ -517,7 +520,14 @@ export default function CycleDashboard({ userSetup }: { userSetup?: any }) {
                     label={fertility.label}
                     tone={fertility.tone}
                   />
-                  <StatusPill label={`Confidence ${prediction?.confidence_score ?? "-"}%`} tone="neutral" />
+                  {/* Show MANUAL MODE badge for fixed mode, otherwise show confidence % */}
+                  {prediction?.prediction_mode === "fixed" || prediction?.confidence_score === null ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-gray-200 text-gray-600">
+                      MANUAL MODE
+                    </span>
+                  ) : (
+                    <StatusPill label={`Confidence ${prediction?.confidence_score ?? "-"}%`} tone="neutral" />
+                  )}
                 </>
               )}
             </div>

@@ -190,7 +190,7 @@ def set_predefined_avatar(
 
 @router.get("/me/next-period-prediction")
 def get_next_period_prediction(
-    prediction_mode: str = "smart",
+    prediction_mode: str = "auto",
     manual_cycle_length: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -215,12 +215,12 @@ def get_next_period_prediction(
     
     has_pcos_or_irregular = user_setup.has_pcos_or_irregular if user_setup else False
     db_manual_cycle_length = user_setup.manual_cycle_length if user_setup else 28
-    db_prediction_mode = user_setup.prediction_mode if user_setup else "smart"
+    db_prediction_mode = user_setup.prediction_mode if user_setup else "auto"
     
     print(f"[BACKEND API] UserSetup loaded from DB: mode={db_prediction_mode}, manual={db_manual_cycle_length}")
     
     # Use saved preference if not provided in query
-    if prediction_mode == "smart" and user_setup and user_setup.prediction_mode:
+    if prediction_mode == "auto" and user_setup and user_setup.prediction_mode:
         prediction_mode = user_setup.prediction_mode
     
     # Get last period date or return insufficient data
@@ -305,6 +305,6 @@ def get_next_period_prediction(
         "warning_message": warning_message,
         "cycle_std_dev": cycle_std_dev,
         "confidence_score": confidence_score,
-        "global_baseline": 28.5 if prediction_mode == "smart" else None,
+        "global_baseline": 28.5 if prediction_mode == "auto" else None,
         "manual_cycle_length": db_manual_cycle_length if prediction_mode == "fixed" else None
     }

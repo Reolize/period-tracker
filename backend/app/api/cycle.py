@@ -29,7 +29,7 @@ def predict_cycle(
 
     # Get user's setup for prediction mode preferences
     setup = db.query(UserSetup).filter(UserSetup.user_id == current_user.id).first()
-    prediction_mode = setup.prediction_mode if setup else "smart"
+    prediction_mode = setup.prediction_mode if setup else "auto"
     manual_cycle_length = setup.manual_cycle_length if setup else 28
 
     result = PredictionEngine.predict(

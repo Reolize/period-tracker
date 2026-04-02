@@ -50,11 +50,13 @@ class PredictionResponse(BaseModel):
     period_length_prediction: int
     cycle_std_dev: float
     period_std_dev: float
-    confidence_score: float
+    confidence_score: float | None
     predicted_ovulation: date
     fertile_window_start: date
     fertile_window_end: date
     health_alerts: list[HealthAlert] | None = None
+    prediction_mode: str | None = None
+    mode_label: str | None = None
 
 class CycleCreate(BaseModel):
     start_date: date

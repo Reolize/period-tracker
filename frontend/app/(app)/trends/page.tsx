@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
-import { Download, Sparkles, Activity, Calendar, BrainCircuit, ArrowRight } from "lucide-react"
+import { Download, Sparkles, Activity, Calendar, BrainCircuit, ArrowRight, Loader2 } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import AIPredictionReport from "@/app/components/AIPredictionReport"
+import { generateHealthReport } from "@/app/components/generateHealthReport"
 
 // Helper function to format month (e.g. "2023-10-01" -> "Oct")
 function formatMonth(dateStr: string) {
@@ -16,17 +17,22 @@ function formatMonth(dateStr: string) {
 interface SymptomPattern {
   name: string
   days: number
+  cycles_with_symptom?: number
+  avg_days_per_cycle?: number
   timeframe: string
   percentage: number
 }
 
 export default function TrendsPage() {
   const router = useRouter()
+  const chartRef = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
+  const [pdfLoading, setPdfLoading] = useState(false)
   const [cycles, setCycles] = useState<any[]>([])
   const [prediction, setPrediction] = useState<any>(null)
   const [symptomPatterns, setSymptomPatterns] = useState<SymptomPattern[]>([])
   const [hasSymptomData, setHasSymptomData] = useState(false)
+  const [userData, setUserData] = useState<{ name: string; email: string } | null>(null)
 
   // Smart navigation handler - scroll if on dashboard, otherwise navigate to dashboard
   const handleLogClick = () => {
@@ -40,11 +46,47 @@ export default function TrendsPage() {
     }
   }
 
+  const handleDownloadPdf = async () => {
+    if (!chartRef.current || !userData) {
+      console.error("Missing chart ref or user data")
+      return
+    }
+
+    setPdfLoading(true)
+    try {
+      await generateHealthReport(
+        userData,
+        {
+          cycles,
+          avgCycleLength,
+          symptomPatterns,
+          prediction
+        },
+        chartRef.current
+      )
+    } catch (err) {
+      console.error("Failed to generate PDF:", err)
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true)
-        
+
+        // Load user data for PDF
+        try {
+          const userRes = await apiFetch("/users/me")
+          setUserData({
+            name: userRes.full_name || userRes.email?.split('@')[0] || "User",
+            email: userRes.email || ""
+          })
+        } catch (err) {
+          console.log("Could not load user data for PDF")
+        }
+
         // Load cycles
         const cyRes = await apiFetch("/cycles/")
         // Get last 6 completed cycles and reverse to show chronological order
@@ -120,7 +162,7 @@ export default function TrendsPage() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-[250px] mt-4">
+          <div ref={chartRef} className="flex-1 min-h-[250px] mt-4">
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
@@ -174,8 +216,19 @@ export default function TrendsPage() {
               <h3 className="font-bold text-[#3f2b4d]">Health Report</h3>
               <p className="text-xs text-[#7d6b86] mt-1">Export your data for your doctor</p>
             </div>
-            <button className="w-full bg-[#3f2b4d] hover:bg-[#2a1d33] text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 mt-2">
-              Download PDF
+            <button
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading || chartData.length === 0}
+              className="w-full bg-[#3f2b4d] hover:bg-[#2a1d33] disabled:bg-[#7d6b86] disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 mt-2"
+            >
+              {pdfLoading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                "Download PDF"
+              )}
             </button>
           </div>
 
@@ -188,17 +241,32 @@ export default function TrendsPage() {
 
         {/* BOTTOM FULL WIDTH: Top Symptoms */}
         <div className="lg:col-span-3 bg-white rounded-3xl p-6 sm:p-8 border border-[#f0e8ee] shadow-sm shadow-[#f0e8ee]/50">
-          <h2 className="text-xl font-bold text-[#3f2b4d] mb-6">Top Symptoms Pattern</h2>
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-[#3f2b4d]">Top Symptoms Pattern</h2>
+            <p className="text-sm text-[#7d6b86] mt-1">
+              How often each symptom appears during your periods • 
+              <span className="text-[#ff7eb6]">Pink bar</span> = occurrence rate
+            </p>
+          </div>
           
           {hasSymptomData ? (
             <div className="space-y-6">
               {symptomPatterns.map((symptom: SymptomPattern, index: number) => (
                 <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
                   
-                  {/* Symptom Name & Frequency */}
-                  <div className="sm:w-48 shrink-0">
-                    <div className="font-bold text-[#3f2b4d]">{symptom.name}</div>
-                    <div className="text-sm text-[#7d6b86]">{symptom.days} days total</div>
+                  {/* Symptom Name & Stats */}
+                  <div className="sm:w-56 shrink-0">
+                    <div className="font-bold text-[#3f2b4d] text-lg">{symptom.name}</div>
+                    <div className="text-sm text-[#7d6b86] mt-1 space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#ff7eb6]"></span>
+                        <span>Appears in <strong>{symptom.cycles_with_symptom} periods</strong> ({symptom.percentage}%)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-[#a78bfa]"></span>
+                        <span>Lasts <strong>~{symptom.avg_days_per_cycle} days</strong> when it happens</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Progress Bar Area */}

@@ -44,7 +44,7 @@ class PredictionEngine:
         db,
         user_id: int,
         cycles: List,
-        prediction_mode: str = "smart",
+        prediction_mode: str = "auto",
         manual_cycle_length: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """
@@ -54,7 +54,7 @@ class PredictionEngine:
             db: Database session
             user_id: User ID
             cycles: List of user's Cycle objects
-            prediction_mode: "smart", "strict", or "fixed"
+            prediction_mode: "auto", "regular", or "fixed"
             manual_cycle_length: Required when mode is "fixed"
             
         Returns:
@@ -64,9 +64,9 @@ class PredictionEngine:
 
         print(f"[ENGINE] Calculating... Mode received: {prediction_mode}. Forcing branch for {prediction_mode}")
 
-        # NUCLEAR ISOLATION: If mode is smart or strict, FORCE manual_cycle_length to None
+        # NUCLEAR ISOLATION: If mode is auto or regular, FORCE manual_cycle_length to None
         # This makes it mathematically impossible to accidentally use the manual number
-        if prediction_mode in ("smart", "strict"):
+        if prediction_mode in ("auto", "regular"):
             print(f"[ENGINE] NUCLEAR ISOLATION: Forcing manual_cycle_length from {manual_cycle_length} to None for {prediction_mode} mode")
             manual_cycle_length = None
 
@@ -97,16 +97,16 @@ class PredictionEngine:
         # Route to appropriate prediction method based on mode
         if prediction_mode == "fixed":
             if manual_cycle_length is None:
-                print("[ENGINE] Fixed mode requested but no manual_cycle_length, falling back to smart")
-                result = cls._predict_smart(db, user_id, cycle_lengths, period_lengths, completed_cycles, last_start_date)
+                print("[ENGINE] Fixed mode requested but no manual_cycle_length, falling back to auto")
+                result = cls._predict_auto(db, user_id, cycle_lengths, period_lengths, completed_cycles, last_start_date)
             else:
                 result = cls._predict_fixed(manual_cycle_length, period_lengths, last_start_date)
         
-        elif prediction_mode == "strict":
-            result = cls._predict_strict(cycle_lengths, period_lengths, last_start_date)
+        elif prediction_mode == "regular":
+            result = cls._predict_regular(cycle_lengths, period_lengths, last_start_date)
         
-        else:  # default to "smart"
-            result = cls._predict_smart(db, user_id, cycle_lengths, period_lengths, completed_cycles, last_start_date)
+        else:  # default to "auto"
+            result = cls._predict_auto(db, user_id, cycle_lengths, period_lengths, completed_cycles, last_start_date)
         
         # Log final result
         if result:
@@ -137,7 +137,8 @@ class PredictionEngine:
 
         cycle_avg = manual_cycle_length
         cycle_sd = 0  # Fixed mode has no variability
-        confidence = 95.0  # High confidence since user explicitly set this
+        # Fixed mode is a manual override, not a prediction - confidence is None
+        confidence = None
 
         return cls._build_prediction_result(
             cycle_avg=cycle_avg,
@@ -151,7 +152,7 @@ class PredictionEngine:
         )
 
     @classmethod
-    def _predict_strict(
+    def _predict_regular(
         cls,
         cycle_lengths: List[int],
         period_lengths: List[int],
@@ -162,7 +163,7 @@ class PredictionEngine:
         """
         # This mode REQUIRES sufficient data
         if len(cycle_lengths) < 3:
-            return None  # Not enough data for strict mode
+            return None  # Not enough data for regular mode
 
         cycle_result = cls._weighted_prediction(cycle_lengths)
         period_result = cls._weighted_prediction(period_lengths)
@@ -190,12 +191,12 @@ class PredictionEngine:
             period_sd=period_sd,
             last_start_date=last_start_date,
             confidence=confidence,
-            mode="strict",
-            mode_label="Regular Calendar (Weighted Average)"
+            mode="regular",
+            mode_label="Regular Calendar (Strict WMA)"
         )
 
     @classmethod
-    def _predict_smart(
+    def _predict_auto(
         cls,
         db,
         user_id: int,
@@ -205,7 +206,7 @@ class PredictionEngine:
         last_start_date: date
     ) -> Optional[Dict[str, Any]]:
         """
-        Smart AI Hybrid mode: Automated 3-tier logic based on cycle count.
+        Auto AI Prediction mode: Automated 3-tier logic based on cycle count.
         
         Tier 1 (0-3 cycles): Global ML Model
         Tier 2 (4-5 cycles): Bayesian Shrinkage
@@ -230,7 +231,7 @@ class PredictionEngine:
                 cycle_sd = 4.26  # Global MAE
                 period_sd = 1.10
                 confidence = 50.0
-                mode_label = "Smart AI (Global ML Model)"
+                mode_label = "Tier 1 (Global ML)"
                 
             elif priors:
                 # Fallback to global priors
@@ -239,7 +240,7 @@ class PredictionEngine:
                 cycle_sd = round(priors.cycle_std, 2)
                 period_sd = round(priors.period_std, 2)
                 confidence = 35.0
-                mode_label = "Smart AI (Global Statistics)"
+                mode_label = "Tier 1 (Global Statistics)"
             else:
                 return None
         
@@ -255,13 +256,13 @@ class PredictionEngine:
                 period_avg = round((cycle_n * period_avg_raw + k * priors.period_mean) / (cycle_n + k))
                 cycle_sd = round((cycle_sd_raw + priors.cycle_std) / 2, 2)
                 period_sd = round((period_sd_raw + priors.period_std) / 2, 2)
-                mode_label = "Smart AI (Bayesian Hybrid)"
+                mode_label = "Tier 2 (Bayesian Hybrid)"
             else:
                 cycle_avg = cycle_avg_raw
                 period_avg = period_avg_raw
                 cycle_sd = cycle_sd_raw
                 period_sd = period_sd_raw
-                mode_label = "Smart AI (Personalized)"
+                mode_label = "Tier 2 (Personalized)"
             
             confidence = 65.0
         
@@ -278,7 +279,7 @@ class PredictionEngine:
             variability = max(0, 1 - (cycle_sd / cycle_avg)) if cycle_avg else 0
             data_score = min(1, cycle_n / cls.WINDOW_SIZE)
             confidence = round((variability * 0.7 + data_score * 0.3) * 100, 2)
-            mode_label = "Smart AI (Weighted Personal History)"
+            mode_label = "Tier 3 (Personal WMA)"
 
         return cls._build_prediction_result(
             cycle_avg=cycle_avg,
@@ -287,7 +288,7 @@ class PredictionEngine:
             period_sd=period_sd,
             last_start_date=last_start_date,
             confidence=confidence,
-            mode="smart",
+            mode="auto",
             mode_label=mode_label
         )
 
@@ -360,7 +361,7 @@ class PredictionEngine:
         cycle_sd: float,
         period_sd: float,
         last_start_date: date,
-        confidence: float,
+        confidence: Optional[float],
         mode: str,
         mode_label: str
     ) -> Dict[str, Any]:

@@ -56,9 +56,10 @@ class SymptomPatternService:
                 current_date = datetime.fromordinal(current_date.toordinal() + 1).date()
                 cycle_day += 1
 
-        # Count symptoms and track cycle days
+        # Count symptoms and track cycle days AND which cycles had the symptom
         symptom_counts = Counter()
         symptom_cycle_days: Dict[str, List[int]] = {}
+        symptom_cycle_ids: Dict[str, set] = {}  # Track unique cycles per symptom
 
         for log in logs:
             # Get cycle day for this log date
@@ -66,7 +67,7 @@ class SymptomPatternService:
             if not cycle_info:
                 continue  # Skip logs not within any cycle
 
-            _, cycle_day = cycle_info
+            cycle_start, cycle_day = cycle_info
 
             # Process physical symptoms
             for symptom in (log.physical_symptoms or []):
@@ -74,7 +75,9 @@ class SymptomPatternService:
                     symptom_counts[symptom] += 1
                     if symptom not in symptom_cycle_days:
                         symptom_cycle_days[symptom] = []
+                        symptom_cycle_ids[symptom] = set()
                     symptom_cycle_days[symptom].append(cycle_day)
+                    symptom_cycle_ids[symptom].add(cycle_start)  # Track unique cycle
 
             # Process moods
             for mood in (log.moods or []):
@@ -84,7 +87,9 @@ class SymptomPatternService:
                     symptom_counts[mood_key] += 1
                     if mood_key not in symptom_cycle_days:
                         symptom_cycle_days[mood_key] = []
+                        symptom_cycle_ids[mood_key] = set()
                     symptom_cycle_days[mood_key].append(cycle_day)
+                    symptom_cycle_ids[mood_key].add(cycle_start)  # Track unique cycle
 
         if not symptom_counts:
             return []
@@ -123,8 +128,12 @@ class SymptomPatternService:
                 else:
                     timeframe = f"Usually Luteal Phase (Day {min_day}-{max_day})"
 
-            # Calculate percentage (relative to total cycles)
-            percentage = min(100, round((count / total_cycles) * 100))
+            # Calculate percentage (cycles with symptom / total cycles * 100)
+            cycles_with_symptom = len(symptom_cycle_ids.get(symptom_name, set()))
+            percentage = min(100, round((cycles_with_symptom / total_cycles) * 100))
+
+            # Calculate average days per cycle with this symptom
+            avg_days_per_cycle = round(count / cycles_with_symptom) if cycles_with_symptom > 0 else 0
 
             # Format symptom name for display
             display_name = symptom_name.replace("_", " ").title()
@@ -132,6 +141,8 @@ class SymptomPatternService:
             result.append({
                 "name": display_name,
                 "days": count,
+                "cycles_with_symptom": cycles_with_symptom,
+                "avg_days_per_cycle": avg_days_per_cycle,
                 "timeframe": timeframe,
                 "percentage": percentage,
                 "raw_symptom": symptom_name,

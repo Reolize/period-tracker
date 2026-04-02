@@ -94,12 +94,12 @@ class TestFixedMode(TestPredictionEngine):
             assert result["cycle_length_prediction"] == length
 
 
-class TestSmartModeColdStart(TestPredictionEngine):
-    """Test Smart AI mode ignores manual_cycle_length with 0 cycles (cold start)."""
+class TestAutoModeColdStart(TestPredictionEngine):
+    """Test Auto AI mode ignores manual_cycle_length with 0 cycles (cold start)."""
     
     @patch('app.services.prediction_engine.load_global_priors')
-    def test_smart_mode_cold_start_ignores_manual_length(self, mock_load_priors, mock_db, mock_user_setup):
-        """Test 2: Smart mode with 0 cycles should ignore manual_cycle_length and use GLOBAL_BASELINE."""
+    def test_auto_mode_cold_start_ignores_manual_length(self, mock_load_priors, mock_db, mock_user_setup):
+        """Test 2: Auto mode with 0 cycles should ignore manual_cycle_length and use GLOBAL_BASELINE."""
         # Mock global priors
         mock_priors = MagicMock()
         mock_priors.cycle_mean = 28.5
@@ -110,12 +110,12 @@ class TestSmartModeColdStart(TestPredictionEngine):
         
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user_setup
         
-        # Pass manual_cycle_length=40 - this should be IGNORED in smart mode
+        # Pass manual_cycle_length=40 - this should be IGNORED in auto mode
         result = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=[],  # 0 cycles - cold start
-            prediction_mode="smart",
+            prediction_mode="auto",
             manual_cycle_length=40  # Should be ignored!
         )
         
@@ -123,11 +123,11 @@ class TestSmartModeColdStart(TestPredictionEngine):
         # Should use global baseline (~28.5), NOT the manual 40
         assert result["cycle_length_prediction"] != 40
         assert result["cycle_length_prediction"] == 28  # Rounded from 28.5
-        assert result["prediction_mode"] == "smart"
+        assert result["prediction_mode"] == "auto"
     
     @patch('app.services.prediction_engine.load_global_priors')
-    def test_smart_mode_cold_start_with_various_manual_lengths(self, mock_load_priors, mock_db, mock_user_setup):
-        """Test smart mode ignores various manual lengths during cold start."""
+    def test_auto_mode_cold_start_with_various_manual_lengths(self, mock_load_priors, mock_db, mock_user_setup):
+        """Test auto mode ignores various manual lengths during cold start."""
         mock_priors = MagicMock()
         mock_priors.cycle_mean = 28.5
         mock_priors.period_mean = 5
@@ -143,19 +143,19 @@ class TestSmartModeColdStart(TestPredictionEngine):
                 db=mock_db,
                 user_id=1,
                 cycles=[],
-                prediction_mode="smart",
+                prediction_mode="auto",
                 manual_cycle_length=manual_length
             )
             assert result["cycle_length_prediction"] != manual_length
             assert result["cycle_length_prediction"] == 28  # Always uses global baseline
 
 
-class TestSmartModeWMATier(TestPredictionEngine):
-    """Test Smart AI mode uses WMA with 6+ cycles and ignores manual_cycle_length."""
+class TestAutoModeWMATier(TestPredictionEngine):
+    """Test Auto AI mode uses WMA with 6+ cycles and ignores manual_cycle_length."""
     
     @patch('app.services.prediction_engine.load_global_priors')
-    def test_smart_mode_wma_tier_ignores_manual_length(self, mock_load_priors, mock_db, mock_user_setup):
-        """Test 3: Smart mode with 6 cycles should use WMA and ignore manual_cycle_length."""
+    def test_auto_mode_wma_tier_ignores_manual_length(self, mock_load_priors, mock_db, mock_user_setup):
+        """Test 3: Auto mode with 6 cycles should use WMA and ignore manual_cycle_length."""
         # Mock global priors for light smoothing
         mock_priors = MagicMock()
         mock_priors.cycle_mean = 28.5
@@ -169,12 +169,12 @@ class TestSmartModeWMATier(TestPredictionEngine):
         # Create 6 cycles of exactly 30 days each
         cycles = create_mock_cycles([30, 30, 30, 30, 30, 30])
         
-        # Pass manual_cycle_length=21 - this should be IGNORED in smart mode
+        # Pass manual_cycle_length=21 - this should be IGNORED in auto mode
         result = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="smart",
+            prediction_mode="auto",
             manual_cycle_length=21  # Should be ignored!
         )
         
@@ -183,11 +183,11 @@ class TestSmartModeWMATier(TestPredictionEngine):
         assert result["cycle_length_prediction"] != 21
         # WMA of [30,30,30,30,30,30] should be ~30 (with light smoothing maybe slightly different)
         assert 28 <= result["cycle_length_prediction"] <= 31
-        assert result["prediction_mode"] == "smart"
+        assert result["prediction_mode"] == "auto"
     
     @patch('app.services.prediction_engine.load_global_priors')
-    def test_smart_mode_wma_with_varying_cycles(self, mock_load_priors, mock_db, mock_user_setup):
-        """Test smart mode WMA calculates correctly with varying cycle lengths."""
+    def test_auto_mode_wma_with_varying_cycles(self, mock_load_priors, mock_db, mock_user_setup):
+        """Test auto mode WMA calculates correctly with varying cycle lengths."""
         mock_priors = MagicMock()
         mock_priors.cycle_mean = 28.5
         mock_priors.period_mean = 5
@@ -204,7 +204,7 @@ class TestSmartModeWMATier(TestPredictionEngine):
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="smart",
+            prediction_mode="auto",
             manual_cycle_length=45  # Should be ignored!
         )
         
@@ -214,22 +214,22 @@ class TestSmartModeWMATier(TestPredictionEngine):
         assert 27 <= result["cycle_length_prediction"] <= 31
 
 
-class TestStrictMode(TestPredictionEngine):
-    """Test Strict (Regular Calendar) mode ignores manual_cycle_length."""
+class TestRegularMode(TestPredictionEngine):
+    """Test Regular (Regular Calendar) mode ignores manual_cycle_length."""
     
-    def test_strict_mode_ignores_manual_length(self, mock_db, mock_user_setup):
-        """Test 4: Strict mode should calculate WMA and ignore manual_cycle_length."""
+    def test_regular_mode_ignores_manual_length(self, mock_db, mock_user_setup):
+        """Test 4: Regular mode should calculate WMA and ignore manual_cycle_length."""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user_setup
         
         # Create 3 cycles of exactly 28 days each
         cycles = create_mock_cycles([28, 28, 28])
         
-        # Pass manual_cycle_length=45 - this should be IGNORED in strict mode
+        # Pass manual_cycle_length=45 - this should be IGNORED in regular mode
         result = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="strict",
+            prediction_mode="regular",
             manual_cycle_length=45  # Should be ignored!
         )
         
@@ -237,11 +237,11 @@ class TestStrictMode(TestPredictionEngine):
         # Should be around 28 (from WMA), NOT 45
         assert result["cycle_length_prediction"] != 45
         assert result["cycle_length_prediction"] == 28  # Pure WMA of [28,28,28]
-        assert result["prediction_mode"] == "strict"
-        assert result["mode_label"] == "Regular Calendar (Weighted Average)"
+        assert result["prediction_mode"] == "regular"
+        assert result["mode_label"] == "Regular Calendar (Strict WMA)"
     
-    def test_strict_mode_with_varied_cycles(self, mock_db, mock_user_setup):
-        """Test strict mode calculates weighted average correctly."""
+    def test_regular_mode_with_varied_cycles(self, mock_db, mock_user_setup):
+        """Test regular mode calculates weighted average correctly."""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user_setup
         
         # Create cycles with more variation
@@ -251,7 +251,7 @@ class TestStrictMode(TestPredictionEngine):
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="strict",
+            prediction_mode="regular",
             manual_cycle_length=40  # Should be ignored!
         )
         
@@ -260,22 +260,22 @@ class TestStrictMode(TestPredictionEngine):
         assert result["cycle_length_prediction"] != 40
         assert result["cycle_length_prediction"] == 28  # Rounded
     
-    def test_strict_mode_insufficient_data(self, mock_db, mock_user_setup):
-        """Test strict mode returns None with <3 cycles."""
+    def test_regular_mode_insufficient_data(self, mock_db, mock_user_setup):
+        """Test regular mode returns None with <3 cycles."""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user_setup
         
-        # Only 2 cycles - strict mode requires >= 3
+        # Only 2 cycles - regular mode requires >= 3
         cycles = create_mock_cycles([28, 30])
         
         result = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="strict",
+            prediction_mode="regular",
             manual_cycle_length=35  # Should be ignored, but also no result
         )
         
-        # Strict mode requires at least 3 cycles
+        # Regular mode requires at least 3 cycles
         assert result is None
 
 
@@ -284,7 +284,7 @@ class TestModeIsolationBoundaries(TestPredictionEngine):
     
     @patch('app.services.prediction_engine.load_global_priors')
     def test_nuclear_isolation_forces_none(self, mock_load_priors, mock_db, mock_user_setup):
-        """Verify nuclear isolation code forces manual_cycle_length to None for smart/strict."""
+        """Verify nuclear isolation code forces manual_cycle_length to None for auto/regular."""
         mock_priors = MagicMock()
         mock_priors.cycle_mean = 28.5
         mock_priors.period_mean = 5
@@ -296,31 +296,31 @@ class TestModeIsolationBoundaries(TestPredictionEngine):
         
         cycles = create_mock_cycles([30, 30, 30, 30, 30, 30])
         
-        # Even with explicit manual_length, smart mode should ignore it
-        result_smart = PredictionEngine.predict(
+        # Even with explicit manual_length, auto mode should ignore it
+        result_auto = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="smart",
+            prediction_mode="auto",
             manual_cycle_length=99
         )
-        assert result_smart["cycle_length_prediction"] != 99
+        assert result_auto["cycle_length_prediction"] != 99
         
-        # Same for strict mode
-        result_strict = PredictionEngine.predict(
+        # Same for regular mode
+        result_regular = PredictionEngine.predict(
             db=mock_db,
             user_id=1,
             cycles=cycles,
-            prediction_mode="strict",
+            prediction_mode="regular",
             manual_cycle_length=99
         )
-        assert result_strict["cycle_length_prediction"] != 99
+        assert result_regular["cycle_length_prediction"] != 99
     
     def test_fixed_mode_with_none_manual_length_fallback(self, mock_db, mock_user_setup):
-        """Test fixed mode falls back to smart when manual_cycle_length is None."""
+        """Test fixed mode falls back to auto when manual_cycle_length is None."""
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user_setup
         
-        # Fixed mode with None should fall back to smart
+        # Fixed mode with None should fall back to auto
         cycles = create_mock_cycles([28, 28, 28, 28, 28, 28])
         
         with patch('app.services.prediction_engine.load_global_priors') as mock_load:
@@ -336,12 +336,12 @@ class TestModeIsolationBoundaries(TestPredictionEngine):
                 user_id=1,
                 cycles=cycles,
                 prediction_mode="fixed",
-                manual_cycle_length=None  # Should trigger fallback to smart
+                manual_cycle_length=None  # Should trigger fallback to auto
             )
             
-            # When manual is None, fixed mode falls back to smart tier
+            # When manual is None, fixed mode falls back to auto tier
             assert result is not None
-            assert result["prediction_mode"] == "smart"  # Fallback to smart logic
+            assert result["prediction_mode"] == "auto"  # Fallback to auto logic
 
 
 if __name__ == "__main__":

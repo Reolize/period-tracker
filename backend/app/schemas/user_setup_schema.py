@@ -29,7 +29,7 @@ class UserSetupUpsert(BaseModel):
     has_pcos_or_irregular: bool = False
 
     # Prediction Mode Settings
-    prediction_mode: str = Field(default="smart", pattern="^(smart|strict|fixed)$")
+    prediction_mode: str = Field(default="auto", pattern="^(auto|regular|fixed)$")
     manual_cycle_length: Optional[int] = Field(default=None, ge=21, le=45)
 
 
@@ -61,7 +61,7 @@ class UserSetupResponse(BaseModel):
     has_pcos_or_irregular: bool = False
 
     # Prediction Mode Settings
-    prediction_mode: str = "smart"
+    prediction_mode: str = "auto"
     manual_cycle_length: Optional[int] = None
 
     class Config:
