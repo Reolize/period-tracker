@@ -12,7 +12,8 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
-  Shield
+  Shield,
+  Brain
 } from "lucide-react"
 import { apiFetch } from "@/lib/api"
 import AdminSidebar from "@/app/components/AdminSidebar"
@@ -179,6 +180,11 @@ export default function AdminOverviewPage() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null)
+  
+  // ML Data Export states
+  const [mlExportOpen, setMlExportOpen] = useState(false)
+  const [minCycles, setMinCycles] = useState(6)
+  const [exportLoading, setExportLoading] = useState(false)
 
   useEffect(() => {
     const checkAdmin = async () => {
@@ -270,6 +276,62 @@ export default function AdminOverviewPage() {
     }
   }
 
+  // Handle ML Data Export
+  const handleMlExport = async () => {
+    setExportLoading(true)
+    try {
+      // Get token from localStorage
+      const token = localStorage.getItem("token")
+      if (!token) {
+        throw new Error("Not authenticated")
+      }
+
+      // Fetch the CSV data from the backend
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/admin/export-ml-data?min_cycles=${minCycles}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`No users found with at least ${minCycles} completed cycles`)
+        }
+        throw new Error("Failed to export data")
+      }
+
+      // Get the blob from response
+      const blob = await response.blob()
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition")
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/)
+      link.download = filenameMatch?.[1] || `ml_training_data_${new Date().getFullYear()}.csv`
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      setToast({ message: "ML training data exported successfully!", type: "success" })
+      setMlExportOpen(false)
+    } catch (err: any) {
+      console.error("Export failed:", err)
+      setToast({ message: err.message || "Failed to export data", type: "error" })
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Sidebar */}
@@ -352,13 +414,19 @@ export default function AdminOverviewPage() {
                 href="/admin/users"
                 color="blue"
               />
-              <QuickActionCard
-                title="System Analytics"
-                description="View detailed metrics about system usage and performance."
-                icon={BarChart3}
-                href="/admin/analytics"
-                color="purple"
-              />
+              <button
+                onClick={() => setMlExportOpen(true)}
+                className="block p-6 rounded-2xl bg-gradient-to-br from-indigo-50 to-indigo-100/50 border border-indigo-200 hover:border-indigo-300 transition-all hover:shadow-lg group text-left"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-white shadow-sm text-indigo-500">
+                    <Brain size={24} />
+                  </div>
+                  <ArrowRight size={20} className="text-indigo-500 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1" />
+                </div>
+                <h3 className="font-semibold text-slate-800 mb-1">Export ML Training Data</h3>
+                <p className="text-sm text-slate-500">Download anonymized cycle data for ML model training.</p>
+              </button>
             </div>
           </div>
 
@@ -405,6 +473,81 @@ export default function AdminOverviewPage() {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* ML Data Export Dialog */}
+      {mlExportOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                  <Brain size={20} />
+                </div>
+                <h3 className="font-semibold text-slate-800">Export ML Training Data</h3>
+              </div>
+              <button
+                onClick={() => setMlExportOpen(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <span className="text-xl">&times;</span>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600">
+                Download anonymized cycle data for training the Global ML model. 
+                Only users with sufficient historical data will be included.
+              </p>
+              
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Minimum Cycles Required
+                </label>
+                <select
+                  value={minCycles}
+                  onChange={(e) => setMinCycles(Number(e.target.value))}
+                  className="w-full px-4 py-2 rounded-lg border border-slate-200 bg-slate-50 focus:border-indigo-500 focus:bg-white outline-none transition-all"
+                >
+                  <option value={3}>3 cycles (more data, lower quality)</option>
+                  <option value={6}>6 cycles (balanced)</option>
+                  <option value={12}>12 cycles (high quality)</option>
+                </select>
+              </div>
+              
+              <div className="bg-indigo-50 rounded-lg p-4 text-sm">
+                <p className="font-medium text-indigo-800 mb-1">Data Privacy</p>
+                <p className="text-indigo-600">
+                  All PII is automatically stripped. User IDs are replaced with anonymous 
+                  identifiers. Only numerical cycle features are exported.
+                </p>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-slate-200 flex gap-3">
+              <button
+                onClick={() => setMlExportOpen(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMlExport}
+                disabled={exportLoading}
+                className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {exportLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  "Export CSV"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

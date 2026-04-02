@@ -539,7 +539,129 @@ Menstrual cycles change with age, stress, and lifestyle. Weighting recent cycles
 
 ---
 
-## <a id="section7">7. โมดูลหลักของระบบ | Core Modules</a>
+### 6.3 กระแสข้อมูล ML Data Export Pipeline | ML Data Export Pipeline
+
+#### ภาษาไทย
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ANONYMIZED ML DATA EXPORT PIPELINE                       │
+│                        (Data Flywheel Infrastructure)                         │
+│                                                                             │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐      │
+│  │  Admin Request  │────→│  Data Extraction │────→│  PII Stripping  │      │
+│  │  (min_cycles=6) │     │  (users, cycles,  │     │  & Anonymization │      │
+│  │                 │     │   setup, logs)    │     │                  │      │
+│  └──────────────────┘     └──────────────────┘     └──────────────────┘      │
+│                              │                            │                 │
+│                              ↓                            ↓                 │
+│                       ┌──────────────────┐     ┌──────────────────┐          │
+│                       │  Data Cleaning   │────→│  Feature Eng.    │          │
+│                       │  (Filter noise)  │     │  (40 features)   │          │
+│                       └──────────────────┘     └──────────────────┘          │
+│                                                       │                     │
+│                                                       ↓                     │
+│                                          ┌───────────────────────┐          │
+│                                          │   CSV Export via      │          │
+│                                          │   StreamingResponse   │          │
+│                                          └───────────────────────┘          │
+│                                                       │                     │
+│                                                       ↓                     │
+│                                          ┌───────────────────────┐          │
+│                                          │  Global ML Model      │          │
+│                                          │  Retraining Pipeline  │          │
+│                                          └───────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**วัตถุประสงค์:**
+สร้าง "Data Flywheel" โครงสร้างพื้นฐานที่ช่วยให้ระบบสามารถดึงข้อมูลสำหรับการฝึกโมเดล ML ได้อย่างต่อเนื่อง เพื่อปรับปรุง Global ML Model ในอนาคต
+
+**การปกป้องความเป็นส่วนตัว (Privacy by Design):**
+- ✅ ลบ PII ทั้งหมด: email, ชื่อ, user_id จริง
+- ✅ สร้าง `anonymous_user_id` แบบ dummy (เช่น `anon_00000001`)
+- ✅ รองรับการกรองตามจำนวนรอบขั้นต่ำ (min_cycles) เพื่อคุณภาพข้อมูล
+
+**การทำความสะอาดข้อมูล (Data Cleaning):**
+- ❌ ตัดข้อมูล metadata ของระบบ: creation timestamps, admin flags
+- ❌ ตัดฟิลด์ที่ว่างเปล่า: BMI, อายุ, น้ำหนัก, ส่วนสูง, วันเกิด
+- ✅ เหลือเฉพาะ 40 ฟีเจอร์ที่มีคุณค่าสูงสำหรับ ML
+
+**หมวดหมู่ฟีเจอร์ 40 รายการ:**
+
+| หมวดหมู่ | จำนวน | ตัวอย่างฟีเจอร์ |
+|---------|-------|----------------|
+| Target & Temporal Context | 10 | `cycle_length_days`, `period_length_days`, `cycle_start_month`, `cycle_sequence_number` |
+| Health Profile | 6 | `setup_has_pcos_or_irregular`, `setup_contraception_method`, `setup_prediction_mode` |
+| Daily Logs & Behavior | 16 | `log_days_with_bleeding`, `log_physical_symptoms_count`, `log_discharge_eggwhite_days` |
+| Statistical Indicators | 7 | `cycle_length_zscore`, `user_cycle_mean`, `user_cycle_std`, `data_quality_score` |
+
+**ไฟล์ที่เกี่ยวข้อง:**
+- `backend/app/api/admin.py` - จุดสิ้นสุด API `export_ml_data()`
+- Frontend: Admin Dashboard → ML Data Export Card
+
+---
+
+#### English
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ANONYMIZED ML DATA EXPORT PIPELINE                       │
+│                        (Data Flywheel Infrastructure)                         │
+│                                                                             │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐      │
+│  │  Admin Request  │────→│  Data Extraction │────→│  PII Stripping  │      │
+│  │  (min_cycles=6) │     │  (users, cycles,  │     │  & Anonymization │      │
+│  │                 │     │   setup, logs)    │     │                  │      │
+│  └──────────────────┘     └──────────────────┘     └──────────────────┘      │
+│                              │                            │                 │
+│                              ↓                            ↓                 │
+│                       ┌──────────────────┐     ┌──────────────────┐          │
+│                       │  Data Cleaning   │────→│  Feature Eng.    │          │
+│                       │  (Filter noise)  │     │  (40 features)   │          │
+│                       └──────────────────┘     └──────────────────┘          │
+│                                                       │                     │
+│                                                       ↓                     │
+│                                          ┌───────────────────────┐          │
+│                                          │   CSV Export via      │          │
+│                                          │   StreamingResponse   │          │
+│                                          └───────────────────────┘          │
+│                                                       │                     │
+│                                                       ↓                     │
+│                                          ┌───────────────────────┐          │
+│                                          │  Global ML Model      │          │
+│                                          │  Retraining Pipeline  │          │
+│                                          └───────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Purpose:**
+Establishes a "Data Flywheel" infrastructure enabling continuous extraction of training-ready historical data to improve the Global ML Model over time.
+
+**Privacy Protection (Anonymization at Source):**
+- ✅ Strips all PII: emails, names, real user IDs
+- ✅ Generates dummy `anonymous_user_id` (e.g., `anon_00000001`)
+- ✅ Supports minimum cycle filtering (min_cycles) for data quality
+
+**Data Cleaning (Ready-to-Train):**
+- ❌ Excludes system metadata: creation timestamps, admin flags
+- ❌ Excludes empty fields: BMI, age, weight, height, date of birth
+- ✅ Exports exactly 40 high-value ML features
+
+**Feature Categories (40 Columns):**
+
+| Category | Count | Example Features |
+|----------|-------|------------------|
+| Target & Temporal Context | 10 | `cycle_length_days`, `period_length_days`, `cycle_start_month`, `cycle_sequence_number` |
+| Health Profile | 6 | `setup_has_pcos_or_irregular`, `setup_contraception_method`, `setup_prediction_mode` |
+| Daily Logs & Behavior | 16 | `log_days_with_bleeding`, `log_physical_symptoms_count`, `log_discharge_eggwhite_days` |
+| Statistical Indicators | 7 | `cycle_length_zscore`, `user_cycle_mean`, `user_cycle_std`, `data_quality_score` |
+
+**Key Files:**
+- `backend/app/api/admin.py` - API endpoint `export_ml_data()`
+- Frontend: Admin Dashboard → ML Data Export Card
+
+---
 
 ### 7.1 ระบบยืนยันตัวตน (Authentication System)
 
